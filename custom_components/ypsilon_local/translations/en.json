@@ -1,0 +1,293 @@
+{
+  "title": "Ypsilon",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Ypsilon Softener",
+        "description": "Enter the BL3372 local IP address.",
+        "data": {
+          "host": "IP Address"
+        }
+      },
+      "discovery_confirm": {
+        "title": "Ypsilon Discovered",
+        "description": "A device was discovered at {host}. Do you want to configure it?"
+      },
+      "reconfigure": {
+        "title": "Change IP address",
+        "data": {
+          "host": "Host"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the device.",
+      "unsupported_device": "Unsupported device model."
+    },
+    "abort": {
+      "already_configured": "Device is already configured.",
+      "wrong_device": "That IP belongs to a different device.",
+      "reconfigure_successful": "Address updated.",
+      "unsupported_device": "This device is not an Ypsilon G6 (model 9).",
+      "cannot_connect": "Could not connect to the device."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ypsilon Options",
+        "data": {
+          "scan_interval": "Polling interval (s)",
+          "adaptive_polling": "Adaptive polling",
+          "active_scan_interval": "Interval while active (s)",
+          "auto_sync_clock": "Sync clock automatically",
+          "clock_tolerance_minutes": "Clock tolerance (min)"
+        },
+        "data_description": {
+          "adaptive_polling": "Poll more often while water is flowing or a regeneration is running.",
+          "active_scan_interval": "Only used when adaptive polling is enabled.",
+          "auto_sync_clock": "Corrects the valve clock when it drifts, including the seasonal daylight saving change, which the softener knows nothing about.",
+          "clock_tolerance_minutes": "Maximum drift tolerated before correcting."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "flow_rate": {
+        "name": "Flow rate"
+      },
+      "daily_water": {
+        "name": "Daily consumption"
+      },
+      "residual_water": {
+        "name": "Remaining treatment capacity"
+      },
+      "weekly_average": {
+        "name": "Weekly average consumption"
+      },
+      "operation_day": {
+        "name": "Regeneration interval"
+      },
+      "remaining_day": {
+        "name": "Days until regeneration"
+      },
+      "periodic_water": {
+        "name": "Periodic capacity"
+      },
+      "backwash_time": {
+        "name": "Backwash duration"
+      },
+      "backwash_remaining": {
+        "name": "Backwash time remaining"
+      },
+      "slow_wash_time": {
+        "name": "Slow wash duration"
+      },
+      "slow_wash_remaining": {
+        "name": "Slow wash time remaining"
+      },
+      "refill_time": {
+        "name": "Brine refill duration"
+      },
+      "refill_remaining": {
+        "name": "Brine refill time remaining"
+      },
+      "wash_time": {
+        "name": "Fast wash duration"
+      },
+      "wash_remaining": {
+        "name": "Fast wash time remaining"
+      },
+      "resin_volume": {
+        "name": "Resin volume"
+      },
+      "filter_work_days": {
+        "name": "Filter working days"
+      },
+      "device_model": {
+        "name": "Model"
+      },
+      "station": {
+        "name": "Operating status",
+        "state": {
+          "in_service": "In service",
+          "backwash": "Backwash",
+          "brine_draw": "Brine draw & slow rinse",
+          "brine_refill": "Brine refill",
+          "fast_rinse": "Fast rinse",
+          "closed": "Valve closed",
+          "salt_dissolving": "Salt dissolving",
+          "pause_1": "Pause 1",
+          "pause_2": "Pause 2"
+        }
+      },
+      "volume_unit": {
+        "name": "Volume unit",
+        "state": {
+          "gallons": "Gallons",
+          "liters": "Liters (L / m³/h)",
+          "cubic_meters": "Cubic meters"
+        }
+      },
+      "polling_mode": {
+        "name": "Polling mode",
+        "state": {
+          "idle": "Idle",
+          "active": "Active"
+        }
+      },
+      "last_sync": {
+        "name": "Last local sync"
+      },
+      "poll_duration": {
+        "name": "Last poll duration"
+      },
+      "scan_interval": {
+        "name": "Polling interval"
+      },
+      "transient_retries": {
+        "name": "Transient retries"
+      },
+      "reauth_count": {
+        "name": "Re-authentications"
+      },
+      "consecutive_failures": {
+        "name": "Consecutive failures"
+      },
+      "failed_polls": {
+        "name": "Failed polls"
+      },
+      "clock_drift": {
+        "name": "Clock drift"
+      },
+      "clock_syncs": {
+        "name": "Clock syncs"
+      },
+      "wash_initiation_time": {
+        "name": "Wash start time"
+      },
+      "active_alerts": {
+        "name": "Active alerts"
+      },
+      "regeneration_pattern": {
+        "name": "Regeneration mode",
+        "state": {
+          "flow": "Volume / flow",
+          "time": "Time / days"
+        }
+      },
+      "maximum_regeneration_interval": {
+        "name": "Maximum regeneration interval"
+      }
+    },
+    "binary_sensor": {
+      "valve_closed_alarm": {
+        "name": "Valve closed automatically"
+      },
+      "clock_fault": {
+        "name": "Clock fault"
+      },
+      "multiple_position_fault": {
+        "name": "Multiple position signals"
+      },
+      "no_position_fault": {
+        "name": "No position signal"
+      },
+      "memory_fault": {
+        "name": "Memory fault"
+      },
+      "salt_shortage_alarm": {
+        "name": "Salt shortage alarm"
+      },
+      "resin_replacement": {
+        "name": "Resin replacement reminder"
+      },
+      "salt_shortage_reminder": {
+        "name": "Salt shortage reminder"
+      },
+      "filter_reminder": {
+        "name": "Filter material reminder"
+      },
+      "communication_problem": {
+        "name": "Local communication problem"
+      }
+    },
+    "number": {
+      "salt_addition": {
+        "name": "Salt addition"
+      },
+      "raw_water_hardness": {
+        "name": "Raw water hardness"
+      },
+      "continuous_water_time": {
+        "name": "Continuous water limit"
+      },
+      "flow_rate_off": {
+        "name": "Flow rate cutoff limit"
+      }
+    },
+    "time": {
+      "regenerating_trigger_time": {
+        "name": "Regeneration time"
+      },
+      "device_clock": {
+        "name": "Device time"
+      }
+    },
+    "switch": {
+      "vacation_mode": {
+        "name": "Vacation mode"
+      }
+    },
+    "button": {
+      "force_regeneration": {
+        "name": "Force regeneration"
+      },
+      "sync_clock": {
+        "name": "Sync clock"
+      }
+    }
+  },
+  "services": {
+    "write_fields": {
+      "name": "Write fields",
+      "description": "Write one or more F79D protocol fields in a single 0x19 frame. Only fields with confirmed encoding are accepted.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Device",
+          "description": "Config entry."
+        },
+        "fields": {
+          "name": "Fields",
+          "description": "Mapping of field id to value. For time fields use [hour, minute]."
+        }
+      }
+    },
+    "advance_phase": {
+      "name": "Advance phase",
+      "description": "Writes systemMode to move the regeneration state machine (0-4). Mechanical operation: use with care.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Device",
+          "description": "Config entry."
+        },
+        "phase": {
+          "name": "Phase",
+          "description": "0 service, 1-4 regeneration stages."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "write_failed": {
+      "message": "Could not write {name} to the softener: {error}"
+    },
+    "below_minimum": {
+      "message": "{value} is below the allowed minimum ({minimum})."
+    },
+    "above_maximum": {
+      "message": "{value} is above the allowed maximum ({maximum})."
+    }
+  }
+}

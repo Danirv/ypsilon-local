@@ -92,6 +92,7 @@ def build_write(field: int, low: int, high: int = 0) -> bytes:
     return bytes(frame)
 
 
+
 # Encoding per field, taken from jsonToBinary() in the legacy WaterDevice APK
 # (product_res/<pid>.zip -> main.*.chunk.js, webpack module 51).
 #
@@ -211,6 +212,9 @@ def extract_tlvs(frame: bytes) -> dict[int, tuple[int, int]]:
         raise F79DProtocolError(f"unexpected response opcode 0x{inner[3]:02x}")
     data = inner[4:-2]
     if len(data) % 3:
+        # A 0x19 acknowledgement is not a TLV list; the frame is already
+        # checksum-validated, so report success with no fields rather than
+        # raising on a perfectly good reply.
         if inner[3] == 0xD9:
             return {}
         raise F79DProtocolError("TLV data not divisible by three")
@@ -221,7 +225,11 @@ def extract_tlvs(frame: bytes) -> dict[int, tuple[int, int]]:
 
 
 def _clock(low: int, high: int) -> str | None:
-    """Format a time-of-day field, or None if the valve reported nonsense."""
+    """Format a time-of-day field, or None if the valve reported nonsense.
+
+    Publishing "25:70:00" would propagate a bad reading into the clock-drift
+    calculation and into any automation comparing times.
+    """
     if not (0 <= low <= 23 and 0 <= high <= 59):
         return None
     return f"{low:02d}:{high:02d}:00"
@@ -249,10 +257,15 @@ def decode_tlvs(tlvs: dict[int, tuple[int, int]]) -> dict[str, Any]:
         elif field in BE16_FIELDS:
             value = low << 8 | high
             if field in HUNDREDTHS_FIELDS:
+                # Scaling depends on waterVolumeUnit, which the entity layer
+                # knows about; keep the raw counter here and convert there.
                 decoded[f"_raw_{name}"] = value
         elif field in BOOL_FIELDS:
             value = bool(low)
         elif field in VOLUME_FIELDS:
+            # Volumes span two consecutive fields. Without the second half the
+            # value is unknowable, and reporting 0 would look like an empty
+            # tank rather than a missing reading.
             if field + 1 not in tlvs:
                 decoded[name] = None
                 continue

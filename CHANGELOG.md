@@ -32,8 +32,10 @@ All notable changes to this project are documented here.
 - Removed custom-component `strings.json`; added Spanish translation.
 - Cleaned legacy Device Time / Wash start time registry entries.
 
-## [2.1.0] - 2026-09-06
-- Unified protocol regression tests into `scripts/audit.py`; removed the duplicated test path.
+## [2.1.0]
+- Rejected incomplete multi-field volume values instead of publishing false zeroes.
+- Rejected invalid time values before they could reach entities or clock calculations.
+- Expanded protocol and consistency auditing.
 
 ## [2.0.0]
 - Preserved the BroadLink client/session and field-52 cache across option reloads.
