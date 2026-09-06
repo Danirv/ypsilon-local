@@ -1,0 +1,35 @@
+name: Publish GitHub release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Validate release source
+        run: |
+          python scripts/publication_check.py
+          python scripts/audit.py
+          python -m compileall -q custom_components/ypsilon_local scripts
+      - name: Verify tag matches manifest version
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VERSION="$(python -c 'import json; print(json.load(open("custom_components/ypsilon_local/manifest.json"))["version"])')"
+          test "$TAG" = "$VERSION" || { echo "Tag v$TAG does not match manifest $VERSION"; exit 1; }
+      - name: Build manual-install archive
+        run: zip -r "ypsilon_local-${GITHUB_REF_NAME}.zip" custom_components/ypsilon_local -x "*/__pycache__/*" "*.pyc"
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "ypsilon_local-${GITHUB_REF_NAME}.zip" --verify-tag --generate-notes --title "Ypsilon ${GITHUB_REF_NAME}"

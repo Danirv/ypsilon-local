@@ -1,0 +1,54 @@
+name: Bug report
+description: Report a reproducible problem with the Ypsilon integration.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: checkboxes
+    attributes:
+      label: Checklist
+      options:
+        - label: I am using the latest released version.
+          required: true
+        - label: I have restarted Home Assistant after updating the integration.
+          required: true
+        - label: I have removed/redacted public IPs, MAC addresses, tokens, keys and other secrets from logs.
+          required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: 2026.9.x
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: Integration version
+      placeholder: 2.3.0
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device / valve / Wi-Fi module
+      placeholder: ATH/BWT Ypsilon G6, Runxin F79D, BroadLink BL3372
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include expected behavior and exact steps to reproduce.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: text
+      description: Enable debug logging if useful. Redact secrets and unique identifiers.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics notes
+      description: Attach Home Assistant diagnostics if available, after checking that they contain no information you do not want to publish.

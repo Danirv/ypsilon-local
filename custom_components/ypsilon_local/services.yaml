@@ -1,0 +1,27 @@
+write_fields:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: ypsilon_local
+    fields:
+      required: true
+      example: '{43: 50, 49: 1}'
+      selector:
+        object:
+
+advance_phase:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: ypsilon_local
+    phase:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 4
+          mode: box
