@@ -5,17 +5,6 @@
     "@Danirv"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/Danirv/ypsilon-local",
-  "issue_tracker": "https://github.com/Danirv/ypsilon-local/issues",
-  "integration_type": "device",
-  "iot_class": "local_polling",
-  "loggers": [
-    "broadlink"
-  ],
-  "requirements": [
-    "broadlink==0.19.0"
-  ],
-  "version": "2.3.0",
   "dhcp": [
     {
       "macaddress": "348E89*"
@@ -35,5 +24,16 @@
     {
       "macaddress": "C8F742*"
     }
-  ]
+  ],
+  "documentation": "https://github.com/Danirv/ypsilon-local",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/Danirv/ypsilon-local/issues",
+  "loggers": [
+    "broadlink"
+  ],
+  "requirements": [
+    "broadlink==0.19.0"
+  ],
+  "version": "2.3.0"
 }
