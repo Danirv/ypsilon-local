@@ -1,5 +1,5 @@
 name: Device compatibility report
-description: Report a compatible or potentially compatible Runxin/BroadLink water softener.
+description: Report a compatible or potentially compatible Runxin water softener/controller or transport.
 title: "[Device]: "
 labels: [compatibility]
 body:
@@ -15,10 +15,17 @@ body:
       label: Valve/controller model
       placeholder: Runxin F79D
   - type: input
-    id: wifi
+    id: transport
     attributes:
-      label: Wi-Fi module / BroadLink devtype
-      placeholder: BL3372 / 0x520F
+      label: Transport / communication module
+      description: BroadLink, UART/serial, TCP bridge, ESP-based module, or other transport if known.
+      placeholder: BroadLink BL3372
+  - type: input
+    id: transport_id
+    attributes:
+      label: Transport identifier / device type
+      description: For BroadLink, include the devtype if known; for other transports include an equivalent model/protocol identifier.
+      placeholder: BroadLink devtype 0x520F
   - type: textarea
     id: behavior
     attributes:
@@ -29,4 +36,4 @@ body:
     id: evidence
     attributes:
       label: Sanitized evidence
-      description: Do not upload vendor APKs, firmware, private keys, pairing keys, credentials, or unredacted packet captures.
+      description: Do not upload vendor APKs, firmware, private keys, pairing keys, credentials, account tokens, or unredacted packet captures.

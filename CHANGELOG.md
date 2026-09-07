@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## [2.4.0] - 2026-09-07
+
+### Added
+- Home-Assistant-independent `runxin/` package with raw frame codec, declarative F79D field catalogue and transport-neutral `F79DClient`.
+- `transport/` abstraction and isolated `BroadlinkBL3372Transport` implementation.
+- Conservative per-field evidence/provenance metadata for interoperability research.
+- Internal architecture, protocol, F79D, BroadLink transport, new-transport and new-device-profile documentation.
+- Offline architecture regressions to ensure the reusable Runxin layer stays free of Home Assistant/BroadLink dependencies.
+
+### Changed
+- Split BL3372 TFB/session/encryption/retry concerns from F79D field/framing concerns without changing Home Assistant entities, config-entry identity or write verification behavior.
+- Kept `api.py` and `protocol.py` as compatibility facades so existing integration imports/research helpers continue to work.
+- Moved field-52 caching and write-settle policy to the Ypsilon composition layer instead of the reusable F79D client.
+- Clarified that BroadLink outer error `-5` is empirically transient on the tested device; the exact internal MCU/UART cause is not proven.
+- Expanded README/contribution guidance around protocol reuse and future extraction to a standalone Python package.
+
 ## [2.3.0] - 2026-09-07
 
 ### Added
@@ -82,7 +98,7 @@ All notable changes to this project are documented here.
 - Added bidirectional control, DHCP discovery and MAC-based identity/migration.
 
 ## [0.4.0]
-- Distinguished transient BroadLink `-5` MCU-busy behavior from expired-session conditions and reduced bus contention.
+- Distinguished transient BroadLink `-5` behavior from expired-session conditions and reduced bus contention.
 
 ## [0.3.0]
 - Improved volume/state classes, diagnostics and temporary communication-failure tolerance.
