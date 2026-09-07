@@ -2,19 +2,30 @@
 """Fail CI when publication placeholders or release metadata are inconsistent."""
 
 from __future__ import annotations
+
 import json
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "custom_components" / "ypsilon_local" / "manifest.json"
+SEMVER = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 
 
 def main() -> int:
     errors: list[str] = []
     manifest = json.loads(MANIFEST.read_text())
     version = manifest.get("version")
-    if version != "2.4.0":
-        errors.append(f"manifest version is {version!r}, expected '2.4.0'")
+    if not isinstance(version, str) or not SEMVER.fullmatch(version):
+        errors.append(f"manifest version is not a valid semantic version: {version!r}")
+    else:
+        info = (ROOT / "info.md").read_text()
+        changelog = (ROOT / "CHANGELOG.md").read_text()
+        if f"# Ypsilon {version}" not in info:
+            errors.append(f"info.md does not identify current version {version}")
+        if f"## [{version}]" not in changelog:
+            errors.append(f"CHANGELOG.md has no section for current version {version}")
+
     for field in ("documentation", "issue_tracker"):
         if "__GITHUB_USER__" in str(manifest.get(field, "")):
             errors.append(f"manifest {field} still contains __GITHUB_USER__")
@@ -36,10 +47,10 @@ def main() -> int:
         print("PUBLICATION CHECK FAILED")
         for error in errors:
             print(f"- {error}")
-        print("Run: python scripts/configure_repository.py YOUR_GITHUB_USERNAME")
         return 1
     print("PUBLICATION CHECK CLEAN")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
