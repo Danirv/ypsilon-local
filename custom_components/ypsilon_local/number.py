@@ -104,6 +104,7 @@ class YpsilonNumber(YpsilonEntity, NumberEntity):
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="unsupported_flow_unit",
+                translation_placeholders={},
             )
 
         if desc.native_min_value is not None and value < desc.native_min_value:
