@@ -28,9 +28,22 @@ Keep Issues enabled and useful topics such as `home-assistant`, `hacs`, `custom-
 
 The repository includes HACS validation, hassfest, the offline protocol/architecture audit, and an automated release workflow. Do not ignore validator failures before publishing or while a HACS default-inclusion request is open.
 
-## 3. Publish a GitHub Release
+## 3. Publish a GitHub Release from the web
 
-After the validation workflows are green, tag the exact manifest version:
+The preferred release path does not require a local Git clone:
+
+1. Merge the version bump and release notes into `main` only after HACS, hassfest and the offline audit are green.
+2. Open GitHub **Actions** → **Publish GitHub release**.
+3. Select **Run workflow** and make sure the branch selector is `main`.
+4. Run the workflow.
+
+The workflow reads the version directly from `custom_components/ypsilon_local/manifest.json`, validates the source again, refuses to reuse an existing tag/release, and creates an annotated `v<manifest version>` tag on the exact `main` commit. The tag push then starts the release job, which validates the tagged source again, builds the manual-install ZIP, verifies tag/version equality and creates the GitHub Release.
+
+This two-stage flow deliberately keeps the tag as the release trigger, so releases created from the web and releases created from Git remain equivalent and auditable.
+
+### Git CLI alternative
+
+If a local clone is available, the same release can still be started by tagging the exact manifest version:
 
 ```bash
 VERSION="$(python -c 'import json; print(json.load(open("custom_components/ypsilon_local/manifest.json"))["version"])')"
@@ -38,7 +51,7 @@ git tag -a "v${VERSION}" -m "Ypsilon ${VERSION}"
 git push origin "v${VERSION}"
 ```
 
-The release workflow validates the source again, verifies tag/version equality, builds the manual-install archive, and creates a full GitHub Release.
+Do not manually create a GitHub Release for the same tag; the workflow owns release creation.
 
 ## 4. Test through HACS
 
@@ -58,7 +71,7 @@ For each release:
 2. Update `CHANGELOG.md` and `info.md`.
 3. Run `python scripts/audit.py`, `python scripts/publication_check.py`, and compileall.
 4. Merge only with HACS/hassfest/audit green.
-5. Tag exactly `v<manifest version>` so the release workflow creates the full release.
+5. Prefer **Actions → Publish GitHub release → Run workflow** on `main`; alternatively push exactly `v<manifest version>` from Git.
 6. Verify the resulting release asset and main-branch validation runs.
 
 Never commit vendor APKs, firmware, proprietary binary/script dumps, credentials, private/pairing keys, or unredacted packet captures.
