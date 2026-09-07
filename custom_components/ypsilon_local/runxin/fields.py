@@ -1,11 +1,11 @@
 """Declarative field catalogue for the Runxin F79D profile.
 
-The catalogue is intentionally data-first.  Field meaning, wire encoding and
+The catalogue is intentionally data-first. Field meaning, wire encoding and
 research evidence live together so future device profiles can reuse the frame
 codec without copying a pile of field-id conditionals.
 
 `LEGACY_APP_CODEC` means the field/encoding was recovered from the legacy
-WaterDevice product codec.  It does *not* mean every field has been exercised
+WaterDevice product codec. It does *not* mean every field has been exercised
 on every valve firmware.
 """
 
@@ -44,7 +44,7 @@ class FieldSpec:
     """One F79D field definition.
 
     `write_codec=None` means the project does not claim a write encoding for
-    that field.  The low-level compatibility encoder still has an explicit U8
+    that field. The low-level compatibility encoder still has an explicit U8
     fallback for research tooling; Home Assistant separately restricts writes
     to its safe whitelist.
     """
@@ -60,14 +60,15 @@ class FieldSpec:
 
 APP = (Evidence.LEGACY_APP_CODEC,)
 OBSERVED = (Evidence.LEGACY_APP_CODEC, Evidence.DEVICE_STATE_OBSERVED)
-FLOW_WRITE = (
+HW_WRITE = (
     Evidence.LEGACY_APP_CODEC,
     Evidence.DEVICE_STATE_OBSERVED,
     Evidence.HARDWARE_WRITE_VERIFIED,
 )
-SALT_CLOUD_WRITE = (
+SALT_HW_CLOUD_WRITE = (
     Evidence.LEGACY_APP_CODEC,
     Evidence.DEVICE_STATE_OBSERVED,
+    Evidence.HARDWARE_WRITE_VERIFIED,
     Evidence.CLOUD_WRITE_OBSERVED,
 )
 
@@ -76,20 +77,20 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(1, "deviceModel", evidence=OBSERVED),
     FieldSpec(2, "language", write_codec=FieldCodec.U8),
     FieldSpec(3, "deviceTimeScheme"),
-    FieldSpec(4, "currentTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM),
+    FieldSpec(4, "currentTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM, evidence=HW_WRITE),
     FieldSpec(5, "washInitiationTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM),
-    FieldSpec(6, "continuousWaterTime", write_codec=FieldCodec.U8, unit_hint="min"),
+    FieldSpec(6, "continuousWaterTime", write_codec=FieldCodec.U8, evidence=HW_WRITE, unit_hint="min"),
     FieldSpec(
         7,
         "flowRateOff",
         FieldCodec.U16_BE,
         FieldCodec.U16_BE,
-        evidence=FLOW_WRITE,
+        evidence=HW_WRITE,
         notes="Hundredths of the selected flow unit.",
     ),
     FieldSpec(8, "waterVolumeUnit", evidence=OBSERVED),
     FieldSpec(9, "workPattern", write_codec=FieldCodec.U8),
-    FieldSpec(10, "regeneratingTriggerTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM),
+    FieldSpec(10, "regeneratingTriggerTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM, evidence=HW_WRITE),
     FieldSpec(
         11,
         "flowRate",
@@ -152,11 +153,11 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
         notes="Uses field 42 as its continuation.",
     ),
     FieldSpec(42, "periodicWaterProductionContinuation", FieldCodec.CONTINUATION),
-    FieldSpec(43, "saltAddition", write_codec=FieldCodec.U8, evidence=SALT_CLOUD_WRITE, unit_hint="kg"),
+    FieldSpec(43, "saltAddition", write_codec=FieldCodec.U8, evidence=SALT_HW_CLOUD_WRITE, unit_hint="kg"),
     FieldSpec(44, "operationDay", evidence=OBSERVED, unit_hint="day"),
     FieldSpec(45, "remainingDay", evidence=OBSERVED, unit_hint="day"),
     FieldSpec(46, "regenerationPattern", write_codec=FieldCodec.U8, evidence=OBSERVED),
-    FieldSpec(47, "rawWaterHardness", FieldCodec.U16_LE, FieldCodec.U16_LE, evidence=OBSERVED, unit_hint="mg/L"),
+    FieldSpec(47, "rawWaterHardness", FieldCodec.U16_LE, FieldCodec.U16_LE, evidence=HW_WRITE, unit_hint="mg/L"),
     FieldSpec(48, "absorbSaltMode", write_codec=FieldCodec.U8),
     FieldSpec(49, "vacationPattern", FieldCodec.BOOL, FieldCodec.U8),
     FieldSpec(50, "saltDissolutionRemainingTime", evidence=OBSERVED),
