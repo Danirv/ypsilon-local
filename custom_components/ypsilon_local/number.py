@@ -15,13 +15,15 @@ from .const import DOMAIN
 from .entity import YpsilonEntity
 from .api import YpsilonConnectionError
 
+VERIFIED_FLOW_UNIT_CODE = 2
+
+
 @dataclass(frozen=True, kw_only=True)
 class YpsilonNumberDescription(NumberEntityDescription):
     field_id: int
     field_name: str
-    # Flow-family fields are stored as hundredths on the wire; the entity
-    # works in the human unit and converts on the way in and out.
     hundredths: bool = False
+
 
 NUMBERS = (
     YpsilonNumberDescription(
@@ -47,9 +49,11 @@ NUMBERS = (
     ),
 )
 
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator = entry.runtime_data
     async_add_entities(YpsilonNumber(coordinator, entry, desc) for desc in NUMBERS)
+
 
 class YpsilonNumber(YpsilonEntity, NumberEntity):
     entity_description: YpsilonNumberDescription
@@ -60,6 +64,20 @@ class YpsilonNumber(YpsilonEntity, NumberEntity):
         base_id = entry.unique_id or entry.entry_id
         self._attr_unique_id = f"{base_id}_{description.key}"
         self._attr_mode = NumberMode.BOX
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        if self.entity_description.key != "flow_rate_off":
+            return True
+        # Field 7 is end-to-end verified only with waterVolumeUnit=2. Keeping
+        # the control unavailable for other unit families prevents us from
+        # presenting an uncalibrated conversion as a safe configuration write.
+        return bool(
+            self.coordinator.data
+            and self.coordinator.data.get("waterVolumeUnit") == VERIFIED_FLOW_UNIT_CODE
+        )
 
     @property
     def native_value(self) -> float | None:
@@ -75,11 +93,19 @@ class YpsilonNumber(YpsilonEntity, NumberEntity):
         return value
 
     async def async_set_native_value(self, value: float) -> None:
-        # encode_field() picks the right serialisation for this field, so a
-        # one-byte setting is never split into low/high by mistake.
         desc = self.entity_description
-        # Defensive range check: a service call or script can pass anything,
-        # and the valve has no way to reject a syntactically valid frame.
+        if (
+            desc.key == "flow_rate_off"
+            and (
+                not self.coordinator.data
+                or self.coordinator.data.get("waterVolumeUnit") != VERIFIED_FLOW_UNIT_CODE
+            )
+        ):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unsupported_flow_unit",
+            )
+
         if desc.native_min_value is not None and value < desc.native_min_value:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
