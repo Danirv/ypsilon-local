@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.sensor import (
-    SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory, UnitOfTime, UnitOfVolume, UnitOfVolumeFlowRate
@@ -20,150 +23,154 @@ from .entity import YpsilonEntity
 SOURCE_DEVICE = "Runxin F79D"
 SOURCE_INTEGRATION = "Ypsilon Local Integration"
 
-VOLUME_UNITS = {0: UnitOfVolume.GALLONS, 1: UnitOfVolume.LITERS, 2: UnitOfVolume.CUBIC_METERS}
-# The device reports flow in the family matching waterVolumeUnit. Only the
-# cubic-metre mode is confirmed against the official app.
+VOLUME_UNITS = {
+    0: UnitOfVolume.GALLONS,
+    1: UnitOfVolume.LITERS,
+    2: UnitOfVolume.CUBIC_METERS,
+}
+# Only unit code 2 has been calibrated end-to-end on the project's hardware.
 FLOW_UNITS = {
     0: UnitOfVolumeFlowRate.GALLONS_PER_MINUTE,
     1: UnitOfVolumeFlowRate.LITERS_PER_HOUR,
     2: UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
 }
-STATION_KEYS = {0: "in_service", 1: "backwash", 2: "brine_draw", 3: "brine_refill", 4: "fast_rinse", 5: "closed", 6: "salt_dissolving", 7: "pause_1", 8: "pause_2"}
+STATION_KEYS = {
+    0: "in_service",
+    1: "backwash",
+    2: "brine_draw",
+    3: "brine_refill",
+    4: "fast_rinse",
+    5: "closed",
+    6: "salt_dissolving",
+    7: "pause_1",
+    8: "pause_2",
+}
 VOLUME_UNIT_KEYS = {0: "gallons", 1: "liters", 2: "cubic_meters"}
 MODEL_NAMES = {9: "F79D / Ypsilon G6"}
 REGENERATION_PATTERN_KEYS = {0: "flow", 1: "time"}
 
+
 @dataclass(frozen=True, kw_only=True)
 class YpsilonSensorDescription(SensorEntityDescription):
     field: str
-    details: str
     protocol_field: str | None = None
     source: str = SOURCE_DEVICE
     unit_kind: str | None = None
     value_map: dict[int, str] | None = None
 
+
 SENSORS = (
     YpsilonSensorDescription(
         key="flow_rate", translation_key="flow_rate", field="flowRate", protocol_field="11",
-        details="Cabal instantani.", unit_kind="flow", device_class=SensorDeviceClass.VOLUME_FLOW_RATE,
-        state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2, icon="mdi:waves-arrow-right",
+        unit_kind="flow", device_class=SensorDeviceClass.VOLUME_FLOW_RATE,
+        state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2,
+        icon="mdi:waves-arrow-right",
     ),
     YpsilonSensorDescription(
-        key="daily_water", translation_key="daily_water", field="dailyWaterConsumption", protocol_field="37–38",
-        details=(
-            "Consum diari acumulat. Es reinicia a mitjanit; amb device_class "
-            "'water' i state_class 'total_increasing', Home Assistant en manté "
-            "estadístiques a llarg termini i es pot afegir al tauler d'aigua, "
-            "que genera les vistes diària, setmanal i mensual."
-        ),
-        unit_kind="volume", device_class=SensorDeviceClass.WATER,
-        state_class=SensorStateClass.TOTAL_INCREASING, suggested_display_precision=2, icon="mdi:water",
+        key="daily_water", translation_key="daily_water", field="dailyWaterConsumption",
+        protocol_field="37–38", unit_kind="volume", device_class=SensorDeviceClass.WATER,
+        state_class=SensorStateClass.TOTAL_INCREASING, suggested_display_precision=2,
+        icon="mdi:water",
     ),
     YpsilonSensorDescription(
-        key="residual_water", translation_key="residual_water", field="residualWaterProduction", protocol_field="35-36",
-        details="Capacitat de tractament restant abans de la pròxima regeneració.", unit_kind="volume",
-        state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2, icon="mdi:water",
+        key="residual_water", translation_key="residual_water", field="residualWaterProduction",
+        protocol_field="35–36", unit_kind="volume", state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2, icon="mdi:water",
     ),
     YpsilonSensorDescription(
-        key="weekly_average", translation_key="weekly_average", field="averageWeeklyWaterConsumption", protocol_field="39–40",
-        details="Mitjana setmanal comunicada.", unit_kind="volume", state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2, icon="mdi:chart-line",
+        key="weekly_average", translation_key="weekly_average", field="averageWeeklyWaterConsumption",
+        protocol_field="39–40", unit_kind="volume", state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2, icon="mdi:chart-line",
     ),
     YpsilonSensorDescription(
         key="station", translation_key="station", field="station", protocol_field="34",
-        details="Fase actual de la vàlvula.", device_class=SensorDeviceClass.ENUM, options=list(STATION_KEYS.values()),
-        icon="mdi:state-machine",
+        device_class=SensorDeviceClass.ENUM, options=list(STATION_KEYS.values()), icon="mdi:state-machine",
     ),
     YpsilonSensorDescription(
         key="operation_day", translation_key="operation_day", field="operationDay", protocol_field="44",
-        details="Interval configurat entre regeneracions quan s'utilitza el mode per temps/dies.",
         native_unit_of_measurement=UnitOfTime.DAYS, entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:calendar-today",
     ),
     YpsilonSensorDescription(
         key="remaining_day", translation_key="remaining_day", field="remainingDay", protocol_field="45",
-        details="Dies restants fins a la regeneració quan s'utilitza el mode per temps/dies.",
         native_unit_of_measurement=UnitOfTime.DAYS, entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:calendar-clock",
     ),
     YpsilonSensorDescription(
-        key="regeneration_pattern", translation_key="regeneration_pattern", field="regenerationPattern", protocol_field="46",
-        details="Criteri principal de regeneració configurat a la vàlvula.",
-        device_class=SensorDeviceClass.ENUM, options=list(REGENERATION_PATTERN_KEYS.values()),
-        icon="mdi:sync-circle",
+        key="regeneration_pattern", translation_key="regeneration_pattern", field="regenerationPattern",
+        protocol_field="46", device_class=SensorDeviceClass.ENUM,
+        options=list(REGENERATION_PATTERN_KEYS.values()), icon="mdi:sync-circle",
     ),
     YpsilonSensorDescription(
         key="maximum_regeneration_interval", translation_key="maximum_regeneration_interval",
         field="maximumRegenerationIntervalDay", protocol_field="23",
-        details="Màxim de dies que la vàlvula permet entre regeneracions.",
         native_unit_of_measurement=UnitOfTime.DAYS, entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:calendar-alert",
     ),
     YpsilonSensorDescription(
-        key="periodic_water", translation_key="periodic_water", field="periodicWaterProduction", protocol_field="41–42",
-        details="Capacitat per cicle.", unit_kind="volume", state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2, entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:water-check",
+        key="periodic_water", translation_key="periodic_water", field="periodicWaterProduction",
+        protocol_field="41–42", unit_kind="volume", state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2, entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:water-check",
     ),
     YpsilonSensorDescription(
         key="backwash_time", translation_key="backwash_time", field="backWashTime", protocol_field="15",
-        details="Durada de contrarentat.", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-outline",
+        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-outline",
     ),
     YpsilonSensorDescription(
-        key="backwash_remaining", translation_key="backwash_remaining", field="backWashTimeRemaining", protocol_field="16",
-        details="Temps restant contrarentat.", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-sand",
+        key="backwash_remaining", translation_key="backwash_remaining", field="backWashTimeRemaining",
+        protocol_field="16", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-sand",
     ),
     YpsilonSensorDescription(
-        key="slow_wash_time", translation_key="slow_wash_time", field="absorbSaltSlowWashTime", protocol_field="17",
-        details="Durada aspiració.", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-outline",
+        key="slow_wash_time", translation_key="slow_wash_time", field="absorbSaltSlowWashTime",
+        protocol_field="17", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-outline",
     ),
     YpsilonSensorDescription(
-        key="slow_wash_remaining", translation_key="slow_wash_remaining", field="absorbSaltTimeRemaining", protocol_field="18",
-        details="Temps restant aspiració.", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-sand",
+        key="slow_wash_remaining", translation_key="slow_wash_remaining", field="absorbSaltTimeRemaining",
+        protocol_field="18", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-sand",
     ),
     YpsilonSensorDescription(
         key="refill_time", translation_key="refill_time", field="saltTankRefillTime", protocol_field="19",
-        details="Durada ompliment.", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-outline",
+        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-outline",
     ),
     YpsilonSensorDescription(
-        key="refill_remaining", translation_key="refill_remaining", field="saltTankRefillTimeRemaining", protocol_field="20",
-        details="Temps restant ompliment.", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-sand",
+        key="refill_remaining", translation_key="refill_remaining", field="saltTankRefillTimeRemaining",
+        protocol_field="20", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-sand",
     ),
     YpsilonSensorDescription(
         key="wash_time", translation_key="wash_time", field="washTime", protocol_field="21",
-        details="Durada rentat ràpid.", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-outline",
+        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-outline",
     ),
     YpsilonSensorDescription(
         key="wash_remaining", translation_key="wash_remaining", field="washCountdownTime", protocol_field="22",
-        details="Temps restant rentat ràpid.", entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-sand",
+        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-sand",
     ),
     YpsilonSensorDescription(
         key="resin_volume", translation_key="resin_volume", field="resinVolume", protocol_field="26",
-        details="Volum nominal resina.", native_unit_of_measurement=UnitOfVolume.LITERS, entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:barrel-outline",
+        native_unit_of_measurement=UnitOfVolume.LITERS, entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:barrel-outline",
     ),
     YpsilonSensorDescription(
-        key="filter_work_days", translation_key="filter_work_days", field="filterMaterialWorkingDay", protocol_field="52",
-        details="Treball material filtrant.", native_unit_of_measurement=UnitOfTime.DAYS, entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:air-filter",
+        key="filter_work_days", translation_key="filter_work_days", field="filterMaterialWorkingDay",
+        protocol_field="52", native_unit_of_measurement=UnitOfTime.DAYS,
+        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:air-filter",
     ),
     YpsilonSensorDescription(
         key="device_model", translation_key="device_model", field="deviceModel", protocol_field="1",
-        details="Model.", value_map=MODEL_NAMES, entity_category=EntityCategory.DIAGNOSTIC,
+        value_map=MODEL_NAMES, entity_category=EntityCategory.DIAGNOSTIC,
     ),
     YpsilonSensorDescription(
         key="volume_unit", translation_key="volume_unit", field="waterVolumeUnit", protocol_field="8",
-        details="Unitat configurada.", device_class=SensorDeviceClass.ENUM, options=list(VOLUME_UNIT_KEYS.values()),
+        device_class=SensorDeviceClass.ENUM, options=list(VOLUME_UNIT_KEYS.values()),
         entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
     ),
-
-    # --- Integration diagnostics -------------------------------------
-    # These describe the link, not the softener. They were published by the
-    # coordinator but had no entities, so the data was invisible.
     YpsilonSensorDescription(
         key="last_sync", translation_key="last_sync", field="_lastSuccessfulUpdate",
-        details="Moment de l'última lectura correcta del dispositiu.",
         source=SOURCE_INTEGRATION, device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:clock-check-outline",
     ),
     YpsilonSensorDescription(
         key="poll_duration", translation_key="poll_duration", field="_pollDurationMs",
-        details="Temps que ha trigat l'última consulta completa.",
         source=SOURCE_INTEGRATION, native_unit_of_measurement="ms",
         state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0,
         entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
@@ -171,82 +178,56 @@ SENSORS = (
     ),
     YpsilonSensorDescription(
         key="scan_interval", translation_key="scan_interval", field="_scanIntervalSeconds",
-        details="Interval de consulta vigent, que canvia amb el sondeig adaptatiu.",
         source=SOURCE_INTEGRATION, native_unit_of_measurement="s",
         entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
         icon="mdi:refresh",
     ),
     YpsilonSensorDescription(
         key="polling_mode", translation_key="polling_mode", field="_pollingMode",
-        details="Ràpid mentre hi ha cabal o regeneració, lent en repòs.",
         source=SOURCE_INTEGRATION, device_class=SensorDeviceClass.ENUM,
         options=["idle", "active"], entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:speedometer",
     ),
     YpsilonSensorDescription(
         key="transient_retries", translation_key="transient_retries", field="_transientRetries",
-        details=(
-            "Vegades que el microcontrolador estava ocupat (-5) i s'ha reintentat "
-            "sobre la mateixa sessió. Un creixement sostingut indica que "
-            "l'interval de consulta és massa curt."
-        ),
         source=SOURCE_INTEGRATION, state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:connection",
     ),
     YpsilonSensorDescription(
         key="reauth_count", translation_key="reauth_count", field="_reauthCount",
-        details="Vegades que la clau de sessió BroadLink ha caducat i s'ha renovat.",
         source=SOURCE_INTEGRATION, state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
         icon="mdi:key-change",
     ),
     YpsilonSensorDescription(
         key="consecutive_failures", translation_key="consecutive_failures", field="_consecutiveFailures",
-        details="Consultes fallides seguides. Es reinicia amb la primera correcta.",
         source=SOURCE_INTEGRATION, state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:alert-circle-outline",
     ),
     YpsilonSensorDescription(
         key="active_alerts", translation_key="active_alerts", field="_activeAlertCount",
-        details=(
-            "Nombre d'avisos actius que demanen alguna acció. L'atribut "
-            "'alerts' en porta la llista, de manera que una sola automatització "
-            "pot notificar-los tots dient quin és."
-        ),
         source=SOURCE_INTEGRATION, state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:bell-alert-outline",
     ),
     YpsilonSensorDescription(
         key="wash_initiation_time", translation_key="wash_initiation_time",
-        field="washInitiationTime", protocol_field="5",
-        details=(
-            "Hora d'inici de rentat que reporta la vàlvula. Acostuma a "
-            "coincidir amb l'hora de regeneració; l'aplicació original no la "
-            "deixa editar, per això aquí és de només lectura."
-        ),
-        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:clock-start",
+        field="washInitiationTime", protocol_field="5", entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:clock-start",
     ),
     YpsilonSensorDescription(
         key="clock_drift", translation_key="clock_drift", field="_clockDriftMinutes",
-        details=(
-            "Minuts que el rellotge de la vàlvula va avançat respecte de l'hora "
-            "local. Positiu vol dir avançat. Amb la sincronització automàtica "
-            "activada es corregeix sol quan supera la tolerància."
-        ),
         source=SOURCE_INTEGRATION, native_unit_of_measurement=UnitOfTime.MINUTES,
-        state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:clock-alert-outline",
+        state_class=SensorStateClass.MEASUREMENT, entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:clock-alert-outline",
     ),
     YpsilonSensorDescription(
         key="clock_syncs", translation_key="clock_syncs", field="_clockSyncs",
-        details="Correccions automàtiques del rellotge des de l'arrencada.",
         source=SOURCE_INTEGRATION, state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
         icon="mdi:clock-check-outline",
     ),
     YpsilonSensorDescription(
         key="failed_polls", translation_key="failed_polls", field="_failedPolls",
-        details="Total de consultes fallides des de l'arrencada.",
         source=SOURCE_INTEGRATION, state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
         icon="mdi:close-network-outline",
@@ -254,7 +235,11 @@ SENSORS = (
 )
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     coordinator = entry.runtime_data
     async_add_entities(YpsilonSensor(coordinator, entry, desc) for desc in SENSORS)
 
@@ -276,26 +261,16 @@ class YpsilonSensor(YpsilonEntity, SensorEntity):
         if value is None:
             return None
 
-        # An enum sensor may only report a value present in "options";
-        # returning None for an unmapped code lets Home Assistant show it as
-        # unknown without rejecting the state, and the raw code stays visible
-        # in the attributes.
         if self.entity_description.key == "station":
             return STATION_KEYS.get(value)
         if self.entity_description.key == "volume_unit":
             return VOLUME_UNIT_KEYS.get(value)
         if self.entity_description.key == "regeneration_pattern":
             return REGENERATION_PATTERN_KEYS.get(value)
-        
         if self.entity_description.value_map is not None:
-            # A hardcoded Catalan string would leak into other languages, so
-            # unmapped codes fall back to the bare number; the "raw_code"
-            # attribute and the description explain what it means.
             return self.entity_description.value_map.get(value, str(value))
 
         if self.entity_description.unit_kind == "flow":
-            # The counter is in hundredths of the reported unit: the official
-            # app shows a raw 14 as 0.14 m3/h.
             unit_code = self.coordinator.data.get("waterVolumeUnit")
             scale = FLOW_RATE_SCALE_BY_UNIT.get(unit_code, FLOW_RATE_SCALE_DEFAULT)
             try:
@@ -316,7 +291,10 @@ class YpsilonSensor(YpsilonEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        attributes = {"origin": self.entity_description.source, "description": self.entity_description.details}
+        # State attributes are intentionally data-only. Human descriptions live
+        # in translations/docs so they do not leak one language into another or
+        # bloat recorder history with static prose.
+        attributes: dict[str, Any] = {"origin": self.entity_description.source}
         if self.entity_description.protocol_field is not None:
             attributes["f79d_protocol_field"] = self.entity_description.protocol_field
         if self.coordinator.data and (
@@ -329,11 +307,7 @@ class YpsilonSensor(YpsilonEntity, SensorEntity):
         if self.entity_description.key == "active_alerts" and self.coordinator.data:
             attributes["alerts"] = self.coordinator.data.get("_activeAlerts", [])
         if self.entity_description.key == "flow_rate" and self.coordinator.data:
-            # Raw 16-bit counter, exposed so FLOW_RATE_SCALE can be calibrated
-            # against a known flow (see const.py).
             raw = self.coordinator.data.get("_raw_flowRate")
             if raw is not None:
                 attributes["raw_value"] = raw
-        if self.coordinator.data and self.entity_description.key in ("station", "volume_unit", "regeneration_pattern"):
-            attributes["raw_code"] = self.coordinator.data.get(self.entity_description.field)
         return attributes
