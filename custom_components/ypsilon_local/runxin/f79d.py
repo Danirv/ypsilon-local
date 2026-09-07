@@ -43,25 +43,25 @@ VOLUME_FIELDS = {
 }
 
 WRITE_SIMPLE = {
-    spec.id
-    for spec in F79D_FIELD_SPECS
-    if spec.write_codec is FieldCodec.U8
+    spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.U8
 }
 WRITE_U16 = {
-    spec.id
-    for spec in F79D_FIELD_SPECS
-    if spec.write_codec is FieldCodec.U16_LE
+    spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.U16_LE
 }
 WRITE_U16_BE = {
+    spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.U16_BE
+}
+WRITE_CLOCK = {
+    spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.TIME_HM
+}
+WRITE_DURATION = {
     spec.id
     for spec in F79D_FIELD_SPECS
-    if spec.write_codec is FieldCodec.U16_BE
+    if spec.write_codec is FieldCodec.DURATION_MIN_SEC
 }
-WRITE_TIME = {
-    spec.id
-    for spec in F79D_FIELD_SPECS
-    if spec.write_codec is FieldCodec.TIME_HM
-}
+# Compatibility symbol retained for pre-2.4 research scripts. Historically this
+# set mixed clock-time and duration tuple fields under one name.
+WRITE_TIME = WRITE_CLOCK | WRITE_DURATION
 
 
 def build_query(fields: list[int]) -> bytes:
@@ -70,14 +70,18 @@ def build_query(fields: list[int]) -> bytes:
 
 
 def build_write(field: int, low: int, high: int = 0) -> bytes:
-    """Build one raw three-byte F79D control group.
-
-    This helper preserves the original research API. New code should normally
-    use `build_write_fields()` so the field catalogue chooses the encoding.
-    """
+    """Build one raw three-byte F79D control group."""
     if not 0 <= field <= 0xFF or not 0 <= low <= 0xFF or not 0 <= high <= 0xFF:
         raise ValueError("values must fit in one byte")
     return build_control_frame([field, low, high])
+
+
+def _pair(value: Any, field: int, label: str) -> tuple[int, int]:
+    try:
+        first, second = value
+    except (TypeError, ValueError) as err:
+        raise ValueError(f"field {field} requires ({label})") from err
+    return int(first), int(second)
 
 
 def encode_field(field: int, value: Any) -> list[int]:
@@ -91,13 +95,18 @@ def encode_field(field: int, value: Any) -> list[int]:
         codec = FieldCodec.U8
 
     if codec is FieldCodec.TIME_HM:
-        try:
-            hour, minute = value
-        except (TypeError, ValueError) as err:
-            raise ValueError(f"field {field} requires (hour, minute)") from err
-        if not 0 <= int(hour) <= 23 or not 0 <= int(minute) <= 59:
+        hour, minute = _pair(value, field, "hour, minute")
+        if not 0 <= hour <= 23 or not 0 <= minute <= 59:
             raise ValueError(f"invalid time {hour}:{minute} for field {field}")
-        return [field, int(hour), int(minute)]
+        return [field, hour, minute]
+
+    if codec is FieldCodec.DURATION_MIN_SEC:
+        minute, second = _pair(value, field, "minute, second")
+        if not 0 <= minute <= 0xFF or not 0 <= second <= 59:
+            raise ValueError(
+                f"invalid duration {minute}m {second}s for field {field}"
+            )
+        return [field, minute, second]
 
     number = int(value)
     if codec is FieldCodec.U16_BE:
@@ -163,14 +172,10 @@ def decode_tlvs(tlvs: dict[int, tuple[int, int]]) -> dict[str, Any]:
         elif codec is FieldCodec.U16_BE:
             value = low << 8 | high
             if field in HUNDREDTHS_FIELDS:
-                # Keep the untouched counter for calibration/debugging. The HA
-                # entity layer applies the selected water-unit scale.
                 decoded[f"_raw_{name}"] = value
         elif codec is FieldCodec.BOOL:
             value = bool(low)
         elif codec is FieldCodec.VOLUME_PAIR:
-            # The four water-volume values each span a base field plus the next
-            # continuation field. Without the continuation the value is unknown.
             if field + 1 not in tlvs:
                 decoded[name] = None
                 continue
@@ -193,7 +198,6 @@ def decode_frame(frame: bytes) -> dict[str, Any]:
     return decode_tlvs(extract_tlvs(frame))
 
 
-# Original private helper name kept for protocol-regression compatibility.
 _inner_frame = inner_frame
 
 __all__ = [
@@ -210,6 +214,8 @@ __all__ = [
     "WRITE_SIMPLE",
     "WRITE_U16",
     "WRITE_U16_BE",
+    "WRITE_CLOCK",
+    "WRITE_DURATION",
     "WRITE_TIME",
     "QUERY_CODE",
     "WRITE_CODE",

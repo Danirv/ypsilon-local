@@ -5,9 +5,7 @@
       "user": {
         "title": "Conectar descalcificador Ypsilon",
         "description": "Introduce la dirección IP local del BL3372.",
-        "data": {
-          "host": "Dirección IP"
-        }
+        "data": {"host": "Dirección IP"}
       },
       "discovery_confirm": {
         "title": "Ypsilon detectado",
@@ -15,9 +13,7 @@
       },
       "reconfigure": {
         "title": "Cambiar dirección IP",
-        "data": {
-          "host": "Host"
-        }
+        "data": {"host": "Host"}
       }
     },
     "error": {
@@ -46,7 +42,7 @@
         "data_description": {
           "adaptive_polling": "Consulta con más frecuencia mientras circula agua o hay una regeneración en curso.",
           "active_scan_interval": "Solo se utiliza cuando el sondeo adaptativo está activado.",
-          "auto_sync_clock": "Corrige la hora de la válvula cuando se desvía, incluido el cambio horario estacional que el descalcificador no conoce.",
+          "auto_sync_clock": "Corrige la hora de la válvula cuando se desvía, incluido el cambio horario estacional que el descalcificador no aplica por sí mismo.",
           "clock_tolerance_minutes": "Desviación máxima permitida antes de corregir la hora."
         }
       }
@@ -54,70 +50,29 @@
   },
   "entity": {
     "sensor": {
-      "flow_rate": {
-        "name": "Caudal"
-      },
-      "daily_water": {
-        "name": "Consumo diario"
-      },
-      "residual_water": {
-        "name": "Capacidad de tratamiento restante"
-      },
-      "weekly_average": {
-        "name": "Consumo medio semanal"
-      },
-      "operation_day": {
-        "name": "Intervalo de regeneración"
-      },
-      "remaining_day": {
-        "name": "Días hasta la regeneración"
-      },
+      "flow_rate": {"name": "Caudal"},
+      "daily_water": {"name": "Consumo diario"},
+      "residual_water": {"name": "Capacidad de tratamiento restante"},
+      "weekly_average": {"name": "Consumo medio semanal"},
+      "operation_day": {"name": "Intervalo de regeneración"},
+      "remaining_day": {"name": "Días hasta la regeneración"},
       "regeneration_pattern": {
         "name": "Modo de regeneración",
-        "state": {
-          "flow": "Volumen / caudal",
-          "time": "Tiempo / días"
-        }
+        "state": {"flow": "Volumen / caudal", "time": "Tiempo / días"}
       },
-      "maximum_regeneration_interval": {
-        "name": "Intervalo máximo de regeneración"
-      },
-      "periodic_water": {
-        "name": "Capacidad por ciclo"
-      },
-      "backwash_time": {
-        "name": "Duración del contralavado"
-      },
-      "backwash_remaining": {
-        "name": "Tiempo restante de contralavado"
-      },
-      "slow_wash_time": {
-        "name": "Duración del lavado lento"
-      },
-      "slow_wash_remaining": {
-        "name": "Tiempo restante de lavado lento"
-      },
-      "refill_time": {
-        "name": "Duración del llenado de salmuera"
-      },
-      "refill_remaining": {
-        "name": "Tiempo restante de llenado de salmuera"
-      },
-      "wash_time": {
-        "name": "Duración del lavado rápido"
-      },
-      "wash_remaining": {
-        "name": "Tiempo restante de lavado rápido"
-      },
-      "resin_volume": {
-        "name": "Volumen de resina"
-      },
-      "filter_work_days": {
-        "name": "Días de trabajo del material filtrante"
-      },
-      "device_model": {
-        "name": "Modelo"
-      },
+      "maximum_regeneration_interval": {"name": "Intervalo máximo de regeneración"},
+      "periodic_water": {"name": "Capacidad por ciclo"},
+      "backwash_time": {"name": "Duración del contralavado"},
+      "backwash_remaining": {"name": "Tiempo restante de contralavado"},
+      "slow_wash_time": {"name": "Duración del lavado lento"},
+      "slow_wash_remaining": {"name": "Tiempo restante de lavado lento"},
+      "refill_time": {"name": "Duración del llenado de salmuera"},
+      "refill_remaining": {"name": "Tiempo restante de llenado de salmuera"},
+      "wash_time": {"name": "Duración del lavado rápido"},
+      "wash_remaining": {"name": "Tiempo restante de lavado rápido"},
+      "resin_volume": {"name": "Volumen de resina"},
+      "filter_work_days": {"name": "Intervalo de mantenimiento del material filtrante"},
+      "device_model": {"name": "Modelo"},
       "station": {
         "name": "Estado de funcionamiento",
         "state": {
@@ -134,160 +89,79 @@
       },
       "volume_unit": {
         "name": "Unidad de volumen",
-        "state": {
-          "gallons": "Galones",
-          "liters": "Litros (L / m³/h)",
-          "cubic_meters": "Metros cúbicos"
-        }
+        "state": {"gallons": "Galones", "liters": "Litros", "cubic_meters": "Metros cúbicos"}
       },
       "polling_mode": {
         "name": "Modo de sondeo",
-        "state": {
-          "idle": "Reposo",
-          "active": "Activo"
-        }
+        "state": {"idle": "Reposo", "active": "Activo"}
       },
-      "last_sync": {
-        "name": "Última sincronización local"
-      },
-      "poll_duration": {
-        "name": "Duración de la última consulta"
-      },
-      "scan_interval": {
-        "name": "Intervalo de consulta"
-      },
-      "transient_retries": {
-        "name": "Reintentos transitorios"
-      },
-      "reauth_count": {
-        "name": "Reautenticaciones"
-      },
-      "consecutive_failures": {
-        "name": "Errores consecutivos"
-      },
-      "failed_polls": {
-        "name": "Consultas fallidas"
-      },
-      "clock_drift": {
-        "name": "Desviación del reloj"
-      },
-      "clock_syncs": {
-        "name": "Sincronizaciones del reloj"
-      },
-      "wash_initiation_time": {
-        "name": "Hora de inicio del lavado"
-      },
-      "active_alerts": {
-        "name": "Avisos activos"
-      }
+      "last_sync": {"name": "Última sincronización local"},
+      "poll_duration": {"name": "Duración de la última consulta"},
+      "scan_interval": {"name": "Intervalo de consulta"},
+      "transient_retries": {"name": "Reintentos transitorios"},
+      "reauth_count": {"name": "Reautenticaciones"},
+      "consecutive_failures": {"name": "Errores consecutivos"},
+      "failed_polls": {"name": "Consultas fallidas"},
+      "clock_drift": {"name": "Desviación del reloj"},
+      "clock_syncs": {"name": "Sincronizaciones del reloj"},
+      "wash_initiation_time": {"name": "Hora de inicio del lavado"},
+      "active_alerts": {"name": "Avisos activos"}
     },
     "binary_sensor": {
-      "valve_closed_alarm": {
-        "name": "Válvula cerrada automáticamente"
-      },
-      "clock_fault": {
-        "name": "Fallo del reloj"
-      },
-      "multiple_position_fault": {
-        "name": "Múltiples señales de posición"
-      },
-      "no_position_fault": {
-        "name": "Sin señal de posición"
-      },
-      "memory_fault": {
-        "name": "Fallo de memoria"
-      },
-      "salt_shortage_alarm": {
-        "name": "Alarma de falta de sal"
-      },
-      "resin_replacement": {
-        "name": "Recordatorio de sustitución de resina"
-      },
-      "salt_shortage_reminder": {
-        "name": "Recordatorio de falta de sal"
-      },
-      "filter_reminder": {
-        "name": "Recordatorio del material filtrante"
-      },
-      "communication_problem": {
-        "name": "Problema de comunicación local"
-      }
+      "valve_closed_alarm": {"name": "Válvula cerrada automáticamente"},
+      "clock_fault": {"name": "Fallo del reloj"},
+      "multiple_position_fault": {"name": "Múltiples señales de posición"},
+      "no_position_fault": {"name": "Sin señal de posición"},
+      "memory_fault": {"name": "Fallo de memoria"},
+      "salt_shortage_alarm": {"name": "Alarma de falta de sal"},
+      "resin_replacement": {"name": "Recordatorio de sustitución de resina"},
+      "salt_shortage_reminder": {"name": "Recordatorio de falta de sal"},
+      "filter_reminder": {"name": "Recordatorio del material filtrante"},
+      "communication_problem": {"name": "Problema de comunicación local"}
     },
     "number": {
-      "salt_addition": {
-        "name": "Sal añadida"
-      },
-      "raw_water_hardness": {
-        "name": "Dureza del agua de entrada"
-      },
-      "continuous_water_time": {
-        "name": "Límite de flujo continuo"
-      },
-      "flow_rate_off": {
-        "name": "Límite de cierre por caudal"
-      }
+      "salt_addition": {"name": "Sal añadida"},
+      "raw_water_hardness": {"name": "Dureza del agua de entrada"},
+      "continuous_water_time": {"name": "Límite de flujo continuo"},
+      "flow_rate_off": {"name": "Límite de cierre por caudal"}
     },
     "time": {
-      "regenerating_trigger_time": {
-        "name": "Hora de regeneración"
-      },
-      "device_clock": {
-        "name": "Hora del dispositivo"
-      }
+      "regenerating_trigger_time": {"name": "Hora de regeneración"},
+      "device_clock": {"name": "Hora del dispositivo"}
     },
-    "switch": {
-      "vacation_mode": {
-        "name": "Modo vacaciones"
-      }
-    },
+    "switch": {"vacation_mode": {"name": "Modo vacaciones"}},
     "button": {
-      "force_regeneration": {
-        "name": "Forzar regeneración"
-      },
-      "sync_clock": {
-        "name": "Sincronizar reloj"
-      }
+      "force_regeneration": {"name": "Forzar regeneración"},
+      "sync_clock": {"name": "Sincronizar reloj"}
     }
   },
   "services": {
     "write_fields": {
       "name": "Escribir campos",
-      "description": "Escribe uno o más campos del protocolo F79D en una sola trama 0x19. Solo se aceptan campos con codificación confirmada.",
+      "description": "Escribe uno o más campos del protocolo F79D en una sola trama 0x19. Solo se aceptan los campos permitidos por la política conservadora de escritura de la integración.",
       "fields": {
-        "config_entry_id": {
-          "name": "Dispositivo",
-          "description": "Entrada de configuración."
-        },
-        "fields": {
-          "name": "Campos",
-          "description": "Mapa de id de campo a valor. Para campos de hora usa [hora, minuto]."
-        }
+        "config_entry_id": {"name": "Dispositivo", "description": "Entrada de configuración."},
+        "fields": {"name": "Campos", "description": "Mapa de id de campo a valor. Para campos de hora usa [hora, minuto]."}
       }
     },
     "advance_phase": {
       "name": "Avanzar fase",
-      "description": "Escribe systemMode para mover la máquina de estados de regeneración (0-4). Operación mecánica: usar con precaución.",
+      "description": "Escribe el modo del sistema para mover la máquina de estados de regeneración (0-4). Operación mecánica: usar con precaución.",
       "fields": {
-        "config_entry_id": {
-          "name": "Dispositivo",
-          "description": "Entrada de configuración."
-        },
-        "phase": {
-          "name": "Fase",
-          "description": "0 servicio, 1-4 fases de regeneración."
-        }
+        "config_entry_id": {"name": "Dispositivo", "description": "Entrada de configuración."},
+        "phase": {"name": "Fase", "description": "0 servicio, 1-4 fases de regeneración."}
       }
     }
   },
   "exceptions": {
-    "write_failed": {
-      "message": "No se ha podido escribir {name} en el descalcificador: {error}"
-    },
-    "below_minimum": {
-      "message": "{value} está por debajo del mínimo permitido ({minimum})."
-    },
-    "above_maximum": {
-      "message": "{value} supera el máximo permitido ({maximum})."
-    }
+    "write_failed": {"message": "No se ha podido escribir {name} en el descalcificador: {error}"},
+    "below_minimum": {"message": "{value} está por debajo del mínimo permitido ({minimum})."},
+    "above_maximum": {"message": "{value} supera el máximo permitido ({maximum})."},
+    "unsupported_flow_unit": {"message": "El control del límite de cierre por caudal solo está habilitado para el modo verificado en metros cúbicos."},
+    "service_entry_not_found": {"message": "No existe una entrada de configuración de Ypsilon con id {entry_id}."},
+    "service_entry_not_loaded": {"message": "La entrada de configuración de Ypsilon seleccionada no está cargada."},
+    "service_fields_not_writable": {"message": "Estos campos no están permitidos por la política segura de escritura: {fields}."},
+    "service_write_failed": {"message": "No se ha podido confirmar la escritura F79D: {error}"},
+    "service_phase_failed": {"message": "No se ha podido confirmar el cambio de fase de regeneración: {error}"}
   }
 }

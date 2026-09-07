@@ -69,11 +69,12 @@ SERVICE_WRITE_FIELDS: Final = "write_fields"
 SERVICE_ADVANCE_PHASE: Final = "advance_phase"
 
 # HA's advanced raw-write service is deliberately narrower than everything the
-# legacy codec knows how to serialise. Unknown/untested writes are refused.
+# legacy codec knows how to serialise. Field 5 stays read-only in HA because the
+# original application does not expose it as a writable setting. Unknown or
+# insufficiently understood writes are refused rather than guessed.
 WRITABLE_FIELDS: Final = frozenset(
     {
         FIELD_CURRENT_TIME,
-        FIELD_WASH_INITIATION_TIME,
         FIELD_REGENERATING_TRIGGER_TIME,
         FIELD_SYSTEM_MODE,
         FIELD_SALT_ADDITION,

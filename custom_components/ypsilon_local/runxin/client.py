@@ -2,6 +2,11 @@
 
 Only a synchronous `transact(frame) -> frame` transport is required. The
 transport may be BroadLink, serial, TCP, ESPHome-backed, or a test double.
+
+Transports may optionally provide `transact_write(frame) -> frame` when writes
+need stricter delivery semantics than reads. This lets a stateful transport
+avoid blindly retransmitting a command after an ambiguous timeout while keeping
+the generic F79D codec transport-neutral.
 """
 
 from __future__ import annotations
@@ -39,8 +44,7 @@ class F79DClient:
         if callable(invalidate):
             invalidate()
 
-    def _transaction(self, request: bytes) -> dict[str, Any]:
-        response = self.transport.transact(request)
+    def _decode_response(self, response: bytes) -> dict[str, Any]:
         try:
             return decode_frame(response)
         except RunxinProtocolError:
@@ -49,6 +53,15 @@ class F79DClient:
             # simply inherit the no-op behavior.
             self._invalidate_transport()
             raise
+
+    def _transaction(self, request: bytes) -> dict[str, Any]:
+        return self._decode_response(self.transport.transact(request))
+
+    def _write_transaction(self, request: bytes) -> dict[str, Any]:
+        write_transaction = getattr(self.transport, "transact_write", None)
+        if callable(write_transaction):
+            return self._decode_response(write_transaction(request))
+        return self._transaction(request)
 
     def read_fields(self, fields: list[int]) -> dict[str, Any]:
         """Read an explicit set of F79D field ids."""
@@ -66,4 +79,4 @@ class F79DClient:
     def write_fields(self, values: dict[int, Any]) -> None:
         """Write one or more F79D fields in a single 0x19 transaction."""
         with self._lock:
-            self._transaction(build_write_fields(values))
+            self._write_transaction(build_write_fields(values))

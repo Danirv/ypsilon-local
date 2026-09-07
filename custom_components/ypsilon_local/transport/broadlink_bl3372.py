@@ -4,6 +4,12 @@ This module owns every BroadLink-specific concern: discovery/authentication,
 0x6A packet transport, encryption, the two-byte TFB length envelope, outer
 response errors, session refresh and the observed transient -5 retry policy.
 The Runxin codec never imports this module or the `broadlink` package.
+
+Read transactions may be retried within bounded budgets. Write transactions are
+sent at most once: after a timeout/outer error the command may already have been
+accepted by the physical controller, so retrying blindly could duplicate a
+mechanical action. The Home Assistant layer reconciles ambiguous writes through
+an independent read-back instead.
 """
 
 from __future__ import annotations
@@ -143,11 +149,9 @@ class BroadlinkBL3372Transport(RunxinTransport):
         self._device = device
 
         if self._firmware is None:
-            # Cosmetic transport metadata only; a missing firmware value must
-            # never make an otherwise healthy Runxin transaction fail.
             try:
                 self._firmware = int(device.get_fwversion())
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001 - cosmetic metadata only
                 self._firmware = None
         return device
 
@@ -164,43 +168,65 @@ class BroadlinkBL3372Transport(RunxinTransport):
         encrypted = response[0x38:]
         if not encrypted or len(encrypted) % 16:
             raise RunxinTransportError("Invalid BroadLink encrypted length")
-        return unpack_tfb(device.decrypt(encrypted))
+        try:
+            plaintext = device.decrypt(encrypted)
+        except BROADLINK_EXCEPTIONS as err:
+            raise RunxinTransportError(f"BroadLink decrypt failed: {err}") from err
+        return unpack_tfb(plaintext)
 
-    def _transact_resilient(self, frame: bytes) -> bytes:
-        """Retry the two observed recoverable BroadLink failure classes.
+    def _transact_read_resilient(self, frame: bytes) -> bytes:
+        """Retry bounded, idempotent read transactions.
 
-        On the tested BL3372/F79D, outer error -5 is transient and often clears
-        after a short retry on the same session. Captures prove the behavior,
-        but not the vendor's exact internal cause, so we deliberately avoid
-        labelling it as a specific MCU/UART state. Outer -1/-7 behave like stale
-        authentication/session failures and get one fresh auth attempt.
+        Outer -5 is empirically transient on the tested BL3372/F79D. The exact
+        internal cause is not known. Authentication-like outer errors get one
+        fresh session. These budgets are independent so an auth refresh cannot
+        accidentally consume the last transient retry slot.
         """
-        reauthed = False
-        for attempt in range(len(self.transient_delays) + 1):
+        transient_attempt = 0
+        reauth_remaining = 1
+        while True:
             try:
                 return self._transact_once(frame)
             except BroadlinkOuterError as err:
-                if err.code in self.auth_error_codes and not reauthed:
-                    reauthed = True
+                if err.code in self.auth_error_codes and reauth_remaining:
+                    reauth_remaining -= 1
                     self.reauth_count += 1
                     self._drop_session()
                     continue
                 if (
                     err.code == self.transient_error_code
-                    and attempt < len(self.transient_delays)
+                    and transient_attempt < len(self.transient_delays)
                 ):
+                    base = self.transient_delays[transient_attempt]
+                    transient_attempt += 1
                     self.transient_retries += 1
-                    base = self.transient_delays[attempt]
                     time.sleep(base + random.uniform(0, base / 2))
                     continue
                 raise
-        raise AssertionError("unreachable")
 
     def transact(self, frame: bytes) -> bytes:
-        """Carry one raw Runxin request through the BroadLink 0x6A channel."""
+        """Carry one read/idempotent raw Runxin request through BroadLink."""
         with self._lock:
             try:
-                return self._transact_resilient(frame)
+                return self._transact_read_resilient(frame)
+            except RunxinTransportError:
+                self._drop_session()
+                raise
+            except BROADLINK_EXCEPTIONS as err:
+                self._drop_session()
+                raise RunxinTransportError(str(err)) from err
+
+    def transact_write(self, frame: bytes) -> bytes:
+        """Send one Runxin write exactly once and never retry it blindly.
+
+        Any transport failure after packet submission is ambiguous: the F79D
+        may have executed the command even if the acknowledgement was lost.
+        Callers must reconcile by reading physical state before deciding whether
+        a retry is safe.
+        """
+        with self._lock:
+            try:
+                return self._transact_once(frame)
             except RunxinTransportError:
                 self._drop_session()
                 raise

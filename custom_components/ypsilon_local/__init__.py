@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -15,7 +15,7 @@ from homeassistant.helpers.device_registry import format_mac
 from .api import YpsilonLocalClient
 from .const import DOMAIN
 from .coordinator import YpsilonDataUpdateCoordinator
-from .services import async_setup_services, async_unload_services
+from .services import async_setup_services
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +39,12 @@ class YpsilonStore:
     field52_cache: dict[str, Any] = field(default_factory=dict)
 
 
+async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
+    """Set up integration-wide services independently of config entries."""
+    async_setup_services(hass)
+    return True
+
+
 def _get_store(hass: HomeAssistant, entry: ConfigEntry) -> YpsilonStore:
     domain_store: dict[str, YpsilonStore] = hass.data.setdefault(DOMAIN, {})
     store = domain_store.get(entry.entry_id)
@@ -55,14 +61,7 @@ def _get_store(hass: HomeAssistant, entry: ConfigEntry) -> YpsilonStore:
 def _migrate_registry_identity(
     hass: HomeAssistant, entry: ConfigEntry, old_bases: set[str], new_base: str
 ) -> None:
-    """Move entity/device registry identities to the MAC without losing history.
-
-    Older releases could key the config entry and its entities by host or by the
-    config-entry id. Merely changing ``ConfigEntry.unique_id`` would make every
-    entity appear new because entity-registry identity includes the platform
-    unique id. Migrate the registry rows in place first so entity_ids, history,
-    areas and user customisations survive the v1 -> v2 transition.
-    """
+    """Move entity/device registry identities to the MAC without losing history."""
     old_bases = old_bases - {new_base}
     if not old_bases:
         return
@@ -143,15 +142,7 @@ def _migrate_registry_identity(
 def _cleanup_legacy_entity_registry_entries(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> None:
-    """Remove orphaned entities left by earlier platform moves.
-
-    Device time moved from a read-only sensor to a writable time entity, and
-    wash start time moved the other way. Entity registry identity includes the
-    entity domain, so the old registry rows cannot automatically follow those
-    moves and Home Assistant displays them as "no longer provided" even though
-    the replacement entity exists. Match by suffix rather than by the old base
-    id so host-, entry-id- and MAC-based historical rows are all covered.
-    """
+    """Remove orphaned entities left by earlier platform moves."""
     registry = er.async_get(hass)
     legacy_suffixes: dict[str, tuple[str, ...]] = {
         "sensor": ("device_time", "device_clock", "current_time"),
@@ -179,13 +170,7 @@ def _cleanup_legacy_entity_registry_entries(
 def _enable_wash_start_sensor_if_integration_disabled(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> None:
-    """Enable Wash start time after changing its default in v2.2.0.
-
-    ``entity_registry_enabled_default`` only applies when an entity is first
-    registered. Existing installations therefore keep the v1.8+ sensor disabled
-    by the integration unless we explicitly lift that integration-owned flag.
-    A user-disabled entity is deliberately left untouched.
-    """
+    """Enable Wash start time after changing its default in v2.2.0."""
     registry = er.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(
         registry, entry.entry_id
@@ -221,24 +206,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: YpsilonConfigEntry) -> b
     _cleanup_legacy_entity_registry_entries(hass, entry)
     _enable_wash_start_sensor_if_integration_disabled(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    async_setup_services(hass)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: YpsilonConfigEntry) -> bool:
     """Unload a config entry, keeping the session and cache warm."""
-    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unloaded:
-        others = [
-            other
-            for other in hass.config_entries.async_entries(DOMAIN)
-            if other.entry_id != entry.entry_id
-            and other.state is ConfigEntryState.LOADED
-        ]
-        if not others:
-            async_unload_services(hass)
-    return unloaded
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

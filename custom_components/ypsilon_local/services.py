@@ -1,9 +1,4 @@
-"""Services for Ypsilon Local.
-
-These cover the advanced corners of the protocol that don't map cleanly onto
-an entity: writing several fields in one control frame, and stepping the
-regeneration state machine by hand.
-"""
+"""Advanced administrator-only services for Ypsilon Local."""
 
 from __future__ import annotations
 
@@ -49,17 +44,22 @@ ADVANCE_PHASE_SCHEMA = vol.Schema(
 def _coordinator(hass: HomeAssistant, entry_id: str):
     entry = hass.config_entries.async_get_entry(entry_id)
     if entry is None or entry.domain != DOMAIN:
-        raise ServiceValidationError(f"No Ypsilon config entry with id {entry_id}")
-    # runtime_data survives an unload, so check the entry is actually loaded
-    # rather than trusting the attribute to be absent.
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="service_entry_not_found",
+            translation_placeholders={"entry_id": entry_id},
+        )
     if entry.state is not ConfigEntryState.LOADED:
-        raise ServiceValidationError("The Ypsilon entry is not loaded")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="service_entry_not_loaded",
+        )
     return entry.runtime_data
 
 
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
-    """Register the integration services once."""
+    """Register integration services once at integration setup time."""
     if hass.services.has_service(DOMAIN, SERVICE_WRITE_FIELDS):
         return
 
@@ -70,8 +70,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
         unknown = sorted(set(raw) - WRITABLE_FIELDS)
         if unknown:
             raise ServiceValidationError(
-                f"Fields not known to be writable: {unknown}. "
-                "Refusing to guess at the protocol."
+                translation_domain=DOMAIN,
+                translation_key="service_fields_not_writable",
+                translation_placeholders={
+                    "fields": ", ".join(str(field) for field in unknown)
+                },
             )
 
         values = {
@@ -81,7 +84,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
         try:
             await coordinator.async_write_and_verify(values)
         except (YpsilonConnectionError, ValueError) as err:
-            raise HomeAssistantError(f"Write failed: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="service_write_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async def _advance_phase(call: ServiceCall) -> None:
         coordinator = _coordinator(hass, call.data[ATTR_CONFIG_ENTRY])
@@ -90,7 +97,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 {FIELD_SYSTEM_MODE: call.data[ATTR_PHASE]}
             )
         except (YpsilonConnectionError, ValueError) as err:
-            raise HomeAssistantError(f"Could not change phase: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="service_phase_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async_register_admin_service(
         hass, DOMAIN, SERVICE_WRITE_FIELDS, _write_fields, schema=WRITE_FIELDS_SCHEMA
@@ -98,10 +109,3 @@ def async_setup_services(hass: HomeAssistant) -> None:
     async_register_admin_service(
         hass, DOMAIN, SERVICE_ADVANCE_PHASE, _advance_phase, schema=ADVANCE_PHASE_SCHEMA
     )
-
-
-@callback
-def async_unload_services(hass: HomeAssistant) -> None:
-    """Remove the services when the last entry goes away."""
-    for service in (SERVICE_WRITE_FIELDS, SERVICE_ADVANCE_PHASE):
-        hass.services.async_remove(DOMAIN, service)

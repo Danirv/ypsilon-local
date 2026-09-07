@@ -83,6 +83,10 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._is_active = False
         self._last_clock_sync_attempt: float | None = None
         self._clock_syncs = 0
+        # Serialise the entire semantic mutation, not only individual socket
+        # transactions. This prevents SET A -> GET A verification from being
+        # interleaved with SET B or automatic clock correction.
+        self._mutation_lock = asyncio.Lock()
 
         super().__init__(
             hass,
@@ -90,8 +94,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             config_entry=entry,
             name=DOMAIN,
             update_interval=timedelta(seconds=self.scan_interval),
-            # Integration diagnostics include a timestamp and counters that can
-            # move even when all valve fields are unchanged.
             always_update=True,
         )
 
@@ -101,9 +103,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return True
 
         station = data.get("station")
-        # 0 is normal service and 5 is a closed, stationary valve. Any other
-        # known or future non-zero phase is treated as active so a new firmware
-        # phase does not silently fall back to slow polling.
         return station not in (None, 0, 5)
 
     def _apply_interval(self, data: dict[str, Any]) -> None:
@@ -153,6 +152,17 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             drift += 1440
         return drift
 
+    @staticmethod
+    def _data_age_seconds(data: dict[str, Any]) -> float | None:
+        """Return age of the last successful physical read."""
+        last_success = data.get("_lastSuccessfulUpdate")
+        if last_success is None:
+            return None
+        try:
+            return max(0.0, (dt_util.utcnow() - last_success).total_seconds())
+        except (TypeError, AttributeError):
+            return None
+
     async def _async_sync_clock_if_needed(self, data: dict[str, Any]) -> None:
         """Correct the valve clock when drift exceeds the configured tolerance."""
         drift = self._clock_drift(data.get("currentTime"))
@@ -180,29 +190,40 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             local.minute,
         )
         expected_time = f"{local.hour:02d}:{local.minute:02d}:00"
-        try:
-            # This automatic write follows the same rule as user initiated
-            # writes: an ACK is not enough. Re-read the physical controller and
-            # only count the sync if the valve reports the requested time.
-            await self.hass.async_add_executor_job(
-                self.client.write_fields,
-                {FIELD_CURRENT_TIME: (local.hour, local.minute)},
-            )
-            confirmed = await self._async_strict_read()
-        except (YpsilonConnectionError, ValueError) as err:
-            # Clock correction is useful but must never turn an otherwise good
-            # scheduled poll into a failed update.
-            _LOGGER.warning("Could not confirm valve clock correction: %s", err)
-            return
 
-        if confirmed.get("currentTime") != expected_time:
-            _LOGGER.warning(
-                "Valve clock correction was ACKed but not confirmed "
-                "(expected %s, got %s)",
-                expected_time,
-                confirmed.get("currentTime"),
-            )
-            return
+        async with self._mutation_lock:
+            write_error: YpsilonConnectionError | None = None
+            try:
+                await self.hass.async_add_executor_job(
+                    self.client.write_fields,
+                    {FIELD_CURRENT_TIME: (local.hour, local.minute)},
+                )
+            except YpsilonConnectionError as err:
+                # Delivery is ambiguous: do not resend. The controller may have
+                # applied the SET despite losing the transport response.
+                write_error = err
+
+            try:
+                confirmed = await self._async_strict_read()
+            except YpsilonConnectionError as err:
+                _LOGGER.warning("Could not confirm valve clock correction: %s", err)
+                return
+
+            if confirmed.get("currentTime") != expected_time:
+                if write_error is not None:
+                    _LOGGER.warning(
+                        "Valve clock write had an ambiguous transport result and "
+                        "read-back did not confirm it: %s",
+                        write_error,
+                    )
+                else:
+                    _LOGGER.warning(
+                        "Valve clock correction was ACKed but not confirmed "
+                        "(expected %s, got %s)",
+                        expected_time,
+                        confirmed.get("currentTime"),
+                    )
+                return
 
         self._clock_syncs += 1
         confirmed["_clockSyncs"] = self._clock_syncs
@@ -227,6 +248,8 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _failedPolls=self._failed_polls,
             _clockDriftMinutes=self._clock_drift(data.get("currentTime")),
             _clockSyncs=self._clock_syncs,
+            _stale=False,
+            _dataAgeSeconds=0.0,
         )
         self._annotate_alerts(data)
         return data
@@ -265,6 +288,8 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _reauthCount=self.client.reauth_count,
                     _pollDurationMs=round((time.perf_counter() - started) * 1000, 1),
                     _clockSyncs=self._clock_syncs,
+                    _stale=True,
+                    _dataAgeSeconds=self._data_age_seconds(stale),
                 )
                 return stale
             raise UpdateFailed(f"Connection error: {err}") from err
@@ -300,9 +325,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for field_name, wanted in expected.items():
             actual = data.get(field_name)
             if field_name == "station" and accept_station_active:
-                # The forced-regeneration action means "start regeneration",
-                # not "remain in stage 1". Any live regeneration phase confirms
-                # the mechanical action, while service/closed does not.
                 if actual in (None, 0, 5):
                     return False
                 continue
@@ -330,69 +352,73 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         *,
         accept_station_active: bool = False,
     ) -> None:
-        """Write, strictly read back, and reject an unconfirmed state change.
+        """Write once, then reconcile the physical controller through read-back.
 
-        Scheduled polling may temporarily retain stale data after a transient
-        communications failure. A write confirmation must never use that path:
-        it performs direct physical reads and compares the values that came
-        back from the valve before reporting success.
+        The whole mutation is serialised. An ACK is not considered state, and
+        a lost/failed transport response never triggers a blind resend: the
+        command may already have been executed. Instead, strict physical reads
+        determine whether the requested state was actually reached.
         """
         expected = self._expected_readback(values)
-        await self.hass.async_add_executor_job(self.client.write_fields, values)
 
-        self._active_until = time.monotonic() + ACTIVE_LINGER_SECONDS
-        mechanical = FIELD_SYSTEM_MODE in values
-        timeout = MECHANICAL_VERIFY_TIMEOUT if mechanical else WRITE_VERIFY_TIMEOUT
-        interval = (
-            MECHANICAL_VERIFY_INTERVAL if mechanical else WRITE_VERIFY_INTERVAL
-        )
-        deadline = time.monotonic() + timeout
-        last_data: dict[str, Any] | None = None
-        last_error: YpsilonConnectionError | None = None
-
-        while True:
-            # No stale fallback here. A transient confirmation-read failure is
-            # retried inside the verification window, but it can never be
-            # replaced by cached coordinator data and called a confirmation.
+        async with self._mutation_lock:
+            write_error: YpsilonConnectionError | None = None
             try:
-                last_data = await self._async_strict_read()
-                last_error = None
+                await self.hass.async_add_executor_job(self.client.write_fields, values)
             except YpsilonConnectionError as err:
-                last_error = err
-            else:
-                if self._matches_expected(
-                    last_data,
-                    expected,
-                    accept_station_active=accept_station_active,
-                ):
-                    # A manually written device clock is already the state the
-                    # user requested. Do not immediately overwrite it through
-                    # automatic clock sync in the same service call; the next
-                    # scheduled poll may still correct it if auto-sync remains
-                    # enabled.
-                    if FIELD_CURRENT_TIME not in values:
-                        await self._async_sync_clock_if_needed(last_data)
-                    self.async_set_updated_data(last_data)
-                    return
+                write_error = err
+                _LOGGER.warning(
+                    "Write transport result was ambiguous; reconciling physical "
+                    "state without resending: %s",
+                    err,
+                )
 
-                # Publish the physical reading even while waiting. Writable
-                # entities keep their provisional UI value until their writer
-                # finishes, but every unrelated sensor stays truthful.
-                self.async_set_updated_data(last_data)
+            self._active_until = time.monotonic() + ACTIVE_LINGER_SECONDS
+            mechanical = FIELD_SYSTEM_MODE in values
+            timeout = MECHANICAL_VERIFY_TIMEOUT if mechanical else WRITE_VERIFY_TIMEOUT
+            interval = (
+                MECHANICAL_VERIFY_INTERVAL if mechanical else WRITE_VERIFY_INTERVAL
+            )
+            deadline = time.monotonic() + timeout
+            last_data: dict[str, Any] | None = None
+            last_error: YpsilonConnectionError | None = None
 
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                if last_data is not None:
-                    mismatch = self._mismatch_text(
+            while True:
+                try:
+                    last_data = await self._async_strict_read()
+                    last_error = None
+                except YpsilonConnectionError as err:
+                    last_error = err
+                else:
+                    if self._matches_expected(
                         last_data,
                         expected,
                         accept_station_active=accept_station_active,
-                    )
-                elif last_error is not None:
-                    mismatch = f"confirmation reads failed: {last_error}"
-                else:
-                    mismatch = "no confirmation data"
-                raise YpsilonWriteNotConfirmed(
-                    f"Write ACKed but not confirmed within {timeout:.0f}s ({mismatch})"
-                ) from last_error
-            await asyncio.sleep(min(interval, remaining))
+                    ):
+                        self.async_set_updated_data(last_data)
+                        return
+
+                    self.async_set_updated_data(last_data)
+
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    if last_data is not None:
+                        mismatch = self._mismatch_text(
+                            last_data,
+                            expected,
+                            accept_station_active=accept_station_active,
+                        )
+                    elif last_error is not None:
+                        mismatch = f"confirmation reads failed: {last_error}"
+                    else:
+                        mismatch = "no confirmation data"
+
+                    if write_error is not None:
+                        raise YpsilonWriteNotConfirmed(
+                            "Write delivery was ambiguous and physical state was "
+                            f"not confirmed within {timeout:.0f}s ({mismatch})"
+                        ) from write_error
+                    raise YpsilonWriteNotConfirmed(
+                        f"Write ACKed but not confirmed within {timeout:.0f}s ({mismatch})"
+                    ) from last_error
+                await asyncio.sleep(min(interval, remaining))
