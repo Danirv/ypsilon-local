@@ -41,13 +41,7 @@ class Evidence(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class FieldSpec:
-    """One F79D field definition.
-
-    `write_codec=None` means the project does not claim a write encoding for
-    that field. The low-level compatibility encoder still has an explicit U8
-    fallback for research tooling; Home Assistant separately restricts writes
-    to its safe whitelist.
-    """
+    """One F79D field definition."""
 
     id: int
     name: str
@@ -80,34 +74,23 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(4, "currentTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM, evidence=HW_WRITE),
     FieldSpec(5, "washInitiationTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM),
     FieldSpec(6, "continuousWaterTime", write_codec=FieldCodec.U8, evidence=HW_WRITE, unit_hint="min"),
-    FieldSpec(
-        7,
-        "flowRateOff",
-        FieldCodec.U16_BE,
-        FieldCodec.U16_BE,
-        evidence=HW_WRITE,
-        notes="Hundredths of the selected flow unit.",
-    ),
+    FieldSpec(7, "flowRateOff", FieldCodec.U16_BE, FieldCodec.U16_BE, evidence=HW_WRITE,
+              notes="Hundredths of the selected flow unit."),
     FieldSpec(8, "waterVolumeUnit", evidence=OBSERVED),
     FieldSpec(9, "workPattern", write_codec=FieldCodec.U8),
     FieldSpec(10, "regeneratingTriggerTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM, evidence=HW_WRITE),
-    FieldSpec(
-        11,
-        "flowRate",
-        FieldCodec.U16_BE,
-        evidence=OBSERVED,
-        notes="Hundredths of the selected flow unit; raw counter is preserved.",
-    ),
+    FieldSpec(11, "flowRate", FieldCodec.U16_BE, evidence=OBSERVED,
+              notes="Hundredths of the selected flow unit; raw counter is preserved."),
     FieldSpec(12, "systemCloseReason", FieldCodec.U16_LE),
     FieldSpec(13, "washingIncreaseNumber", write_codec=FieldCodec.U8),
     FieldSpec(14, "backWashIntervalNumber", write_codec=FieldCodec.U8),
-    FieldSpec(15, "backWashTime", FieldCodec.DURATION_MIN_SEC, FieldCodec.TIME_HM),
+    FieldSpec(15, "backWashTime", FieldCodec.DURATION_MIN_SEC, FieldCodec.DURATION_MIN_SEC),
     FieldSpec(16, "backWashTimeRemaining", FieldCodec.DURATION_MIN_SEC),
-    FieldSpec(17, "absorbSaltSlowWashTime", FieldCodec.DURATION_MIN_SEC, FieldCodec.TIME_HM),
+    FieldSpec(17, "absorbSaltSlowWashTime", FieldCodec.DURATION_MIN_SEC, FieldCodec.DURATION_MIN_SEC),
     FieldSpec(18, "absorbSaltTimeRemaining", FieldCodec.DURATION_MIN_SEC),
-    FieldSpec(19, "saltTankRefillTime", FieldCodec.DURATION_MIN_SEC, FieldCodec.TIME_HM),
+    FieldSpec(19, "saltTankRefillTime", FieldCodec.DURATION_MIN_SEC, FieldCodec.DURATION_MIN_SEC),
     FieldSpec(20, "saltTankRefillTimeRemaining", FieldCodec.DURATION_MIN_SEC),
-    FieldSpec(21, "washTime", FieldCodec.DURATION_MIN_SEC, FieldCodec.TIME_HM),
+    FieldSpec(21, "washTime", FieldCodec.DURATION_MIN_SEC, FieldCodec.DURATION_MIN_SEC),
     FieldSpec(22, "washCountdownTime", FieldCodec.DURATION_MIN_SEC),
     FieldSpec(23, "maximumRegenerationIntervalDay", write_codec=FieldCodec.U8, unit_hint="day"),
     FieldSpec(24, "outRelayMode", write_codec=FieldCodec.U8),
@@ -121,37 +104,17 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(32, "resinReplacementReminder", FieldCodec.BOOL),
     FieldSpec(33, "reminderFlags", FieldCodec.REMINDER_FLAGS),
     FieldSpec(34, "station", write_codec=FieldCodec.U8, evidence=OBSERVED),
-    FieldSpec(
-        35,
-        "residualWaterProduction",
-        FieldCodec.VOLUME_PAIR,
-        evidence=OBSERVED,
-        notes="Uses field 36 as its continuation.",
-    ),
+    FieldSpec(35, "residualWaterProduction", FieldCodec.VOLUME_PAIR, evidence=OBSERVED,
+              notes="Uses field 36 as its continuation."),
     FieldSpec(36, "residualWaterProductionContinuation", FieldCodec.CONTINUATION),
-    FieldSpec(
-        37,
-        "dailyWaterConsumption",
-        FieldCodec.VOLUME_PAIR,
-        evidence=OBSERVED,
-        notes="Uses field 38 as its continuation.",
-    ),
+    FieldSpec(37, "dailyWaterConsumption", FieldCodec.VOLUME_PAIR, evidence=OBSERVED,
+              notes="Uses field 38 as its continuation."),
     FieldSpec(38, "dailyWaterConsumptionContinuation", FieldCodec.CONTINUATION),
-    FieldSpec(
-        39,
-        "averageWeeklyWaterConsumption",
-        FieldCodec.VOLUME_PAIR,
-        evidence=OBSERVED,
-        notes="Uses field 40 as its continuation.",
-    ),
+    FieldSpec(39, "averageWeeklyWaterConsumption", FieldCodec.VOLUME_PAIR, evidence=OBSERVED,
+              notes="Uses field 40 as its continuation."),
     FieldSpec(40, "averageWeeklyWaterConsumptionContinuation", FieldCodec.CONTINUATION),
-    FieldSpec(
-        41,
-        "periodicWaterProduction",
-        FieldCodec.VOLUME_PAIR,
-        evidence=OBSERVED,
-        notes="Uses field 42 as its continuation.",
-    ),
+    FieldSpec(41, "periodicWaterProduction", FieldCodec.VOLUME_PAIR, evidence=OBSERVED,
+              notes="Uses field 42 as its continuation."),
     FieldSpec(42, "periodicWaterProductionContinuation", FieldCodec.CONTINUATION),
     FieldSpec(43, "saltAddition", write_codec=FieldCodec.U8, evidence=SALT_HW_CLOUD_WRITE, unit_hint="kg"),
     FieldSpec(44, "operationDay", evidence=OBSERVED, unit_hint="day"),
