@@ -205,14 +205,22 @@ def repository_checks() -> list[str]:
         if not m or "entity_category=EntityCategory.DIAGNOSTIC" not in m.group("body"): errors.append(f"{key}: diagnostic binary regression")
 
     keys: dict[str,set[str]] = {}
+    exception_keys: set[str] = set()
     for file, domain in PLATFORMS.items():
-        found = set(re.findall(r'translation_key="(\w+)"', read(file))) | set(re.findall(r'_attr_translation_key = "(\w+)"', read(file)))
+        text = read(file)
+        exceptions = set(re.findall(r'translation_key="(\w+)",\s*\n\s*translation_placeholders', text))
+        exception_keys |= exceptions
+        found = set(re.findall(r'translation_key="(\w+)"', text)) | set(re.findall(r'_attr_translation_key = "(\w+)"', text))
+        found -= exceptions
         if found: keys[domain] = found
     for lang in ("ca","en","es"):
-        data = json.loads(read(f"translations/{lang}.json")).get("entity",{})
+        translation = json.loads(read(f"translations/{lang}.json"))
+        data = translation.get("entity",{})
         for domain, expected in keys.items():
             missing = sorted(expected - set(data.get(domain,{})))
             if missing: errors.append(f"translations/{lang}.json {domain}: missing {missing}")
+        missing_exceptions = sorted(exception_keys - set(translation.get("exceptions",{})))
+        if missing_exceptions: errors.append(f"translations/{lang}.json exceptions: missing {missing_exceptions}")
     names = []
     for domain, group in json.loads(read("translations/en.json"))["entity"].items():
         for key, val in group.items():
