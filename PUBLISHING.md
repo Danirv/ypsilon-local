@@ -1,80 +1,54 @@
 # Publishing Ypsilon on GitHub and HACS
 
-The source tree is prepared for a public repository named `ypsilon-local`. One account-specific value is intentionally not guessed: the maintainer's GitHub username.
+The source tree is prepared for the public `Danirv/ypsilon-local` repository and HACS distribution.
 
-## 1. Configure the repository owner
+## 1. Repository metadata
 
-Run once before the first public push:
+If preparing a fresh clone/template, configure the repository owner once:
 
 ```bash
 python scripts/configure_repository.py Danirv --repo ypsilon-local
 ```
 
-GitHub Sponsors is configured in this repository for `Danirv`. Once the GitHub Sponsors account is approved, the repository Sponsor button will use it:
-
-```bash
-python scripts/configure_repository.py Danirv --repo ypsilon-local --github-sponsors Danirv
-```
-
-Or configure Ko-fi with `--ko-fi NAME`.
-
-Then verify:
+Funding can be configured through GitHub Sponsors and/or Ko-fi. Then verify:
 
 ```bash
 python scripts/publication_check.py
 python scripts/audit.py
+python -m compileall -q custom_components/ypsilon_local scripts
 ```
 
-## 2. Create the GitHub repository
-
-Recommended repository name: `ypsilon-local`
+## 2. Repository requirements
 
 Recommended description:
 
 > Local Home Assistant integration for Runxin F79D / BroadLink BL3372 water softeners, including ATH/BWT Ypsilon G6.
 
-Recommended topics:
+Keep Issues enabled and useful topics such as `home-assistant`, `hacs`, `custom-component`, `water-softener`, `runxin`, `broadlink`, and `ypsilon`.
 
-- `home-assistant`
-- `hacs`
-- `custom-component`
-- `water-softener`
-- `runxin`
-- `broadlink`
-- `ypsilon`
+The repository includes HACS validation, hassfest, the offline protocol/architecture audit, and an automated release workflow. Do not ignore validator failures before publishing or while a HACS default-inclusion request is open.
 
-Enable **Issues** and verify **Sponsorships** is enabled so the `.github/FUNDING.yml` link is exposed. Optionally enable **Discussions** and **Private vulnerability reporting**.
+## 3. Publish a GitHub Release
 
-## 3. Push and validate
-
-Push the default branch. The repository includes:
-
-- HACS validation (`hacs/action@main`)
-- hassfest (`home-assistant/actions/hassfest@master`)
-- offline audit / protocol regressions
-
-Do not ignore validator failures before requesting HACS default inclusion.
-
-## 4. Publish a GitHub Release
-
-After the validation workflows are green, create and push a version tag matching `manifest.json`:
+After the validation workflows are green, tag the exact manifest version:
 
 ```bash
-git tag -a v2.3.0 -m "Ypsilon 2.3.0"
-git push origin v2.3.0
+VERSION="$(python -c 'import json; print(json.load(open("custom_components/ypsilon_local/manifest.json"))["version"])')"
+git tag -a "v${VERSION}" -m "Ypsilon ${VERSION}"
+git push origin "v${VERSION}"
 ```
 
-The release workflow verifies that the tag and manifest version match, builds a manual-install archive and creates a full GitHub Release with generated release notes.
+The release workflow validates the source again, verifies tag/version equality, builds the manual-install archive, and creates a full GitHub Release.
 
-## 5. Test through HACS as a custom repository
+## 4. Test through HACS
 
-Add the GitHub repository to HACS as a custom **Integration**, install it, restart Home Assistant, configure the device and verify update/reload behavior before requesting default inclusion.
+Before requesting default inclusion, add the repository to HACS as a custom **Integration**, install/update it, restart Home Assistant, configure the device, and verify the real hardware path.
 
-## 6. Request HACS default inclusion
+## 5. HACS default inclusion
 
-Current HACS requirements include a public GitHub repository, passing HACS + hassfest actions, brand assets, repository description/topics/issues, and at least one full GitHub Release before submission. Submit the repository to `hacs/default` only after those checks pass.
+Current HACS requirements include a public GitHub repository, passing HACS + hassfest actions, brand assets, repository description/topics/issues, and a full GitHub Release created after successful validation actions.
 
-HACS reviews can take significant time, so the custom-repository installation path should remain documented and supported.
+The project currently has an inclusion request open at `hacs/default#10717`. Normal repository maintenance and new releases can continue while it waits in the review queue; do not open duplicate inclusion PRs or comment on the queue PR unless critical information or reviewer feedback requires it.
 
 ## Release discipline
 
@@ -82,8 +56,9 @@ For each release:
 
 1. Update `manifest.json` version.
 2. Update `CHANGELOG.md` and `info.md`.
-3. Run `python scripts/audit.py` and `python scripts/publication_check.py`.
+3. Run `python scripts/audit.py`, `python scripts/publication_check.py`, and compileall.
 4. Merge only with HACS/hassfest/audit green.
-5. Tag exactly `v<manifest version>`.
+5. Tag exactly `v<manifest version>` so the release workflow creates the full release.
+6. Verify the resulting release asset and main-branch validation runs.
 
 Never commit vendor APKs, firmware, proprietary binary/script dumps, credentials, private/pairing keys, or unredacted packet captures.

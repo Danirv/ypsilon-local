@@ -13,8 +13,8 @@ def main() -> int:
     errors: list[str] = []
     manifest = json.loads(MANIFEST.read_text())
     version = manifest.get("version")
-    if version != "2.3.0":
-        errors.append(f"manifest version is {version!r}, expected '2.3.0'")
+    if version != "2.4.0":
+        errors.append(f"manifest version is {version!r}, expected '2.4.0'")
     for field in ("documentation", "issue_tracker"):
         if "__GITHUB_USER__" in str(manifest.get(field, "")):
             errors.append(f"manifest {field} still contains __GITHUB_USER__")

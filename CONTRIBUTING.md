@@ -1,25 +1,72 @@
 # Contributing
 
-Contributions are welcome. The project prioritizes reliable local control, explicit state reconciliation, and conservative handling of commands that can move the valve or consume water/salt.
+Contributions are welcome. The project prioritizes reliable local control,
+explicit state reconciliation, conservative mechanical writes, and reusable
+interoperability knowledge.
 
 ## Before opening a pull request
 
 1. Run `python scripts/audit.py`.
 2. Run `python scripts/publication_check.py` in a configured public clone.
-3. Keep user-facing strings in the translation files (`en`, `ca`, `es`).
-4. Prefer small, reviewable changes and preserve entity unique IDs unless a migration is provided.
-5. For writes, distinguish command transport, protocol ACK, and confirmed device state.
+3. Run `python -m compileall -q custom_components/ypsilon_local scripts`.
+4. Keep user-facing strings in the translation files (`en`, `ca`, `es`).
+5. Prefer small, reviewable changes and preserve entity/config-entry unique ids
+   unless a migration is provided.
+6. For writes, distinguish command transport, protocol ACK and confirmed
+   physical device state.
+
+## Architecture boundaries
+
+Read [`docs/architecture.md`](docs/architecture.md) before protocol work.
+
+- `runxin/` must remain independent of Home Assistant and BroadLink.
+- transports carry raw Runxin frames and must not decode F79D fields;
+- packet/encryption/session logic belongs in a transport implementation;
+- field ids, codecs and evidence belong in the device profile;
+- Home Assistant decides which known writes are safe to expose;
+- keep `protocol.py` as a compatibility facade, not as a place for new logic.
+
+These boundaries are enforced by the offline audit where practical.
 
 ## Protocol research and test data
 
-Interoperability research is welcome, but this repository must not contain vendor APKs, firmware images, proprietary scripts/binaries, credentials, private or pairing keys, account tokens, or unredacted captures containing user/device identifiers.
+Interoperability research is welcome, but this repository must not contain
+vendor APKs, firmware images, proprietary scripts/binaries, credentials, private
+or pairing keys, account tokens, or unredacted captures containing user/device
+identifiers.
 
-Small sanitized protocol fixtures that are necessary to test independently written code are acceptable when they contain no secrets and no substantial vendor code/content.
+Small sanitized protocol fixtures necessary to test independently written code
+are acceptable when they contain no secrets and no substantial vendor
+code/content.
 
-## New devices
+When documenting a reverse-engineered fact, distinguish evidence recovered from
+the legacy app, behavior observed on a real device, a physically verified write,
+and an inference. Prefer an explicit `inferred` note to false certainty.
 
-For a new device or firmware, include the brand/model, valve/controller model, BroadLink module/devtype if known, and which fields/commands were actually verified. Do not mark an untested field writable merely because its numeric ID looks plausible.
+## New transports
+
+See [`docs/adding-a-transport.md`](docs/adding-a-transport.md). A transport should
+implement the raw `transact(frame: bytes) -> bytes` contract and remove only its
+own envelope before returning the response.
+
+The existence of a transport implementation does not automatically make that
+hardware discoverable/supported by the Home Assistant integration.
+
+## New Runxin devices
+
+See [`docs/adding-a-device-profile.md`](docs/adding-a-device-profile.md). Include
+the brand/model, valve/controller model, transport/module identity if known, and
+which fields/commands were actually verified. Do not copy the F79D table or mark
+an untested field writable merely because its numeric id looks plausible.
+
+## Standalone-library direction
+
+The pure protocol layer is intentionally structured so it can later be moved to
+a public PyPI library if there are multiple real consumers. Until that happens,
+do not introduce runtime dependencies between unrelated HACS integrations by
+importing an installed `custom_components.ypsilon_local` package.
 
 ## License
 
-By contributing, you agree that your contribution is licensed under the repository's Apache License 2.0.
+By contributing, you agree that your contribution is licensed under the
+repository's Apache License 2.0.
