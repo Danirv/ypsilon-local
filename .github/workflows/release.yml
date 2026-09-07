@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  create-tag:
+  web-release:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
@@ -27,11 +27,6 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - name: Validate release source
-        run: |
-          python scripts/publication_check.py
-          python scripts/audit.py
-          python -m compileall -q custom_components/ypsilon_local scripts
       - name: Resolve manifest version
         id: version
         shell: bash
@@ -40,32 +35,59 @@ jobs:
           TAG="v${VERSION}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-      - name: Refuse an existing tag or release
+      - name: Prepare release tag
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version.outputs.tag }}
-        shell: bash
-        run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists"
-            exit 1
-          fi
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists"
-            exit 1
-          fi
-      - name: Create and push annotated release tag
-        env:
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Ypsilon $VERSION" "$GITHUB_SHA"
-          git push origin "$TAG"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists"
+            exit 1
+          fi
 
-  release:
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; reusing it for release recovery"
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+          else
+            python scripts/publication_check.py
+            python scripts/audit.py
+            python -m compileall -q custom_components/ypsilon_local scripts
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Ypsilon $VERSION" "$GITHUB_SHA"
+            git push origin "$TAG"
+          fi
+      - name: Check out tagged release source
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: git checkout --detach "$TAG"
+      - name: Validate tagged release source
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          TAGGED_VERSION="$(python -c 'import json; print(json.load(open("custom_components/ypsilon_local/manifest.json"))["version"])')"
+          test "$TAGGED_VERSION" = "$VERSION" || {
+            echo "Existing tag contains manifest version $TAGGED_VERSION, expected $VERSION"
+            exit 1
+          }
+          python scripts/publication_check.py
+          python scripts/audit.py
+          python -m compileall -q custom_components/ypsilon_local scripts
+      - name: Build manual-install archive
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: zip -r "ypsilon_local-${TAG}.zip" custom_components/ypsilon_local -x "*/__pycache__/*" "*.pyc"
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh release create "$TAG" "ypsilon_local-${TAG}.zip" --verify-tag --generate-notes --title "Ypsilon ${TAG}"
+
+  tag-release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -84,6 +106,15 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           VERSION="$(python -c 'import json; print(json.load(open("custom_components/ypsilon_local/manifest.json"))["version"])')"
           test "$TAG" = "$VERSION" || { echo "Tag v$TAG does not match manifest $VERSION"; exit 1; }
+      - name: Refuse duplicate release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists"
+            exit 1
+          fi
       - name: Build manual-install archive
         run: zip -r "ypsilon_local-${GITHUB_REF_NAME}.zip" custom_components/ypsilon_local -x "*/__pycache__/*" "*.pyc"
       - name: Create GitHub Release
