@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented here.
 
+## [2.4.1] - 2026-09-07
+
+### Added
+- Explicit stale-data diagnostics with physical-data age.
+- Write-specific transport hook so stateful transports can avoid blind retries after ambiguous delivery.
+- Explicit F79D duration write codec, while retaining the legacy `WRITE_TIME` compatibility symbol.
+- End-to-end hardware-write evidence for device clock, continuous-flow limit, flow cutoff, regeneration time, salt addition and raw-water hardness.
+- Translatable administrator-service errors in English, Spanish and Catalan.
+
+### Changed
+- Serialise the full `SET -> strict GET -> reconciliation` mutation sequence so writes and automatic clock correction cannot interleave semantically.
+- BroadLink read retries now use independent transient and re-authentication budgets.
+- BroadLink writes are sent at most once; a lost ACK is reconciled through physical read-back instead of being resent blindly.
+- Rapid coalesced entity writes now make every caller await and receive the final physical success/failure result.
+- Advanced services are registered at integration setup time rather than depending on a loaded config entry.
+- Field 5 remains read-only in Home Assistant and was removed from the advanced safe-write whitelist.
+- Flow-cutoff configuration is only enabled for the verified cubic-metre unit mode.
+- State attributes are data-only; static Catalan descriptions were removed from recorder-facing attributes.
+- Filter-media field 52 is named as a service interval rather than elapsed working days.
+- Publication/audit version checks are version-agnostic instead of hardcoding 2.4.0.
+- F79D fields 34 (forced regeneration) and 49 (vacation mode) remain explicitly pending physical write verification.
+
 ## [2.4.0] - 2026-09-07
 
 ### Added
