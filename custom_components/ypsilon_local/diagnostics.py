@@ -10,6 +10,8 @@ from homeassistant.core import HomeAssistant
 
 from .runxin.semantics import (
     REGENERATION_PATTERN_KEYS,
+    STATION_KEYS,
+    SYSTEM_CLOSE_REASON_KEYS,
     VOLUME_UNIT_KEYS,
     WORK_PATTERN_KEYS,
 )
@@ -25,6 +27,8 @@ def _semantic_protocol_summary(data: dict[str, Any] | None) -> dict[str, Any] | 
     regeneration_code = data.get("regenerationPattern")
     work_code = data.get("workPattern")
     volume_unit_code = data.get("waterVolumeUnit")
+    station_code = data.get("station")
+    close_code = data.get("systemCloseReason")
 
     return {
         "profile": "F79D",
@@ -35,6 +39,12 @@ def _semantic_protocol_summary(data: dict[str, Any] | None) -> dict[str, Any] | 
         "regeneration_pattern": REGENERATION_PATTERN_KEYS.get(regeneration_code),
         "work_pattern_code": work_code,
         "work_pattern": WORK_PATTERN_KEYS.get(work_code),
+        "station_code": station_code,
+        "station": STATION_KEYS.get(station_code),
+        "vacation_enabled": data.get("vacationPattern"),
+        "vacation_status": data.get("_vacationStatus"),
+        "system_close_reason_code": close_code,
+        "system_close_reason": SYSTEM_CLOSE_REASON_KEYS.get(close_code),
     }
 
 

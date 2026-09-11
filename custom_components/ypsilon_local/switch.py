@@ -6,13 +6,12 @@ from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import YpsilonConnectionError
-from .const import DOMAIN, FIELD_HOLIDAY_MODE
+from .const import DOMAIN
 from .coordinator import YpsilonDataUpdateCoordinator
 from .entity import YpsilonEntity
 
@@ -25,11 +24,10 @@ async def async_setup_entry(
 
 
 class YpsilonVacationSwitch(YpsilonEntity, SwitchEntity):
-    """Holiday mode (field 49), confirmed against the legacy APK codec."""
+    """Vacation-mode flag with the legacy application's state-machine guards."""
 
     _attr_translation_key = "vacation_mode"
     _attr_icon = "mdi:beach"
-    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(
         self, coordinator: YpsilonDataUpdateCoordinator, entry: ConfigEntry
@@ -47,18 +45,22 @@ class YpsilonVacationSwitch(YpsilonEntity, SwitchEntity):
         value = self.coordinator.data.get("vacationPattern")
         return None if value is None else bool(value)
 
-    async def _set(self, state: int) -> None:
+    async def _set(self, enabled: bool) -> None:
+        self._set_pending(enabled)
         try:
-            await self._async_write({FIELD_HOLIDAY_MODE: state}, state)
+            await self.coordinator.async_set_vacation_mode(enabled)
         except YpsilonConnectionError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="write_failed",
                 translation_placeholders={"name": "vacation mode", "error": str(err)},
             ) from err
+        finally:
+            self._pending_value = None
+            self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self._set(1)
+        await self._set(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        await self._set(0)
+        await self._set(False)

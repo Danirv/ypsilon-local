@@ -8,14 +8,14 @@ from homeassistant.components.number import NumberEntity, NumberEntityDescriptio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory, UnitOfMass, UnitOfTime, UnitOfVolumeFlowRate
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .api import YpsilonConnectionError
 from .const import DOMAIN
 from .entity import YpsilonEntity
-from .api import YpsilonConnectionError
 
-VERIFIED_FLOW_UNIT_CODE = 2
+SUPPORTED_FLOW_UNIT_CODE = 2
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -29,28 +29,33 @@ NUMBERS = (
     YpsilonNumberDescription(
         key="salt_addition", translation_key="salt_addition", field_id=43, field_name="saltAddition",
         native_min_value=0, native_max_value=100, native_step=1,
-        native_unit_of_measurement=UnitOfMass.KILOGRAMS, entity_category=EntityCategory.CONFIG, icon="mdi:shaker-outline",
+        native_unit_of_measurement=UnitOfMass.KILOGRAMS, entity_category=EntityCategory.CONFIG,
+        icon="mdi:shaker-outline",
     ),
     YpsilonNumberDescription(
-        key="raw_water_hardness", translation_key="raw_water_hardness", field_id=47, field_name="rawWaterHardness",
-        native_min_value=50, native_max_value=1500, native_step=10,
-        native_unit_of_measurement="mg/L", entity_category=EntityCategory.CONFIG, icon="mdi:water-opacity",
+        key="raw_water_hardness", translation_key="raw_water_hardness", field_id=47,
+        field_name="rawWaterHardness", native_min_value=50, native_max_value=1500,
+        native_step=10, native_unit_of_measurement="mg/L",
+        entity_category=EntityCategory.CONFIG, icon="mdi:water-opacity",
     ),
     YpsilonNumberDescription(
-        key="continuous_water_time", translation_key="continuous_water_time", field_id=6, field_name="continuousWaterTime",
-        native_min_value=0, native_max_value=255, native_step=1,
-        native_unit_of_measurement=UnitOfTime.MINUTES, entity_category=EntityCategory.CONFIG, icon="mdi:pipe-leak",
+        key="continuous_water_time", translation_key="continuous_water_time", field_id=6,
+        field_name="continuousWaterTime", native_min_value=0, native_max_value=255,
+        native_step=1, native_unit_of_measurement=UnitOfTime.MINUTES,
+        entity_category=EntityCategory.CONFIG, icon="mdi:pipe-leak",
     ),
     YpsilonNumberDescription(
         key="flow_rate_off", translation_key="flow_rate_off", field_id=7, field_name="flowRateOff",
-        hundredths=True,
-        native_min_value=0, native_max_value=655.35, native_step=0.01,
-        native_unit_of_measurement=UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR, entity_category=EntityCategory.CONFIG, icon="mdi:valve-closed",
+        hundredths=True, native_min_value=0, native_max_value=655.35, native_step=0.01,
+        native_unit_of_measurement=UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
+        entity_category=EntityCategory.CONFIG, icon="mdi:valve-closed",
     ),
 )
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
     coordinator = entry.runtime_data
     async_add_entities(YpsilonNumber(coordinator, entry, desc) for desc in NUMBERS)
 
@@ -71,12 +76,12 @@ class YpsilonNumber(YpsilonEntity, NumberEntity):
             return False
         if self.entity_description.key != "flow_rate_off":
             return True
-        # Field 7 is end-to-end verified only with waterVolumeUnit=2. Keeping
-        # the control unavailable for other unit families prevents us from
-        # presenting an uncalibrated conversion as a safe configuration write.
+        # The legacy app's field-7 codec is now mirrored exactly (LE). Unit code
+        # 2 is the only flow-unit family calibrated on the project's hardware,
+        # so keep this control unavailable for uncalibrated unit families.
         return bool(
             self.coordinator.data
-            and self.coordinator.data.get("waterVolumeUnit") == VERIFIED_FLOW_UNIT_CODE
+            and self.coordinator.data.get("waterVolumeUnit") == SUPPORTED_FLOW_UNIT_CODE
         )
 
     @property
@@ -98,7 +103,7 @@ class YpsilonNumber(YpsilonEntity, NumberEntity):
             desc.key == "flow_rate_off"
             and (
                 not self.coordinator.data
-                or self.coordinator.data.get("waterVolumeUnit") != VERIFIED_FLOW_UNIT_CODE
+                or self.coordinator.data.get("waterVolumeUnit") != SUPPORTED_FLOW_UNIT_CODE
             )
         ):
             raise ServiceValidationError(

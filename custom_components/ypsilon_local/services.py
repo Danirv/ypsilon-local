@@ -13,7 +13,9 @@ from homeassistant.helpers.service import async_register_admin_service
 from .api import YpsilonConnectionError
 from .const import (
     DOMAIN,
+    FIELD_FLOW_RATE_OFF,
     FIELD_SYSTEM_MODE,
+    SAFE_RAW_WRITE_RANGES,
     SERVICE_ADVANCE_PHASE,
     SERVICE_WRITE_FIELDS,
     WRITABLE_FIELDS,
@@ -57,6 +59,45 @@ def _coordinator(hass: HomeAssistant, entry_id: str):
     return entry.runtime_data
 
 
+def _validate_raw_fields(coordinator, values: dict[int, object]) -> None:
+    """Apply the same safety contract to the raw service as normal entities."""
+    for field, value in values.items():
+        if field in SAFE_RAW_WRITE_RANGES:
+            if isinstance(value, list):
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="service_field_invalid_value",
+                    translation_placeholders={"field": str(field), "value": str(value)},
+                )
+            low, high = SAFE_RAW_WRITE_RANGES[field]
+            try:
+                number = int(value)
+            except (TypeError, ValueError) as err:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="service_field_invalid_value",
+                    translation_placeholders={"field": str(field), "value": str(value)},
+                ) from err
+            if not low <= number <= high:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="service_field_out_of_range",
+                    translation_placeholders={
+                        "field": str(field), "value": str(value),
+                        "minimum": str(low), "maximum": str(high),
+                    },
+                )
+
+    if FIELD_FLOW_RATE_OFF in values and (
+        not coordinator.data or coordinator.data.get("waterVolumeUnit") != 2
+    ):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="unsupported_flow_unit",
+            translation_placeholders={},
+        )
+
+
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
     """Register integration services once at integration setup time."""
@@ -77,6 +118,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 },
             )
 
+        _validate_raw_fields(coordinator, raw)
         values = {
             field: tuple(value) if isinstance(value, list) else value
             for field, value in raw.items()

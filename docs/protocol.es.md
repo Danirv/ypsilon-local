@@ -2,85 +2,76 @@
 
 # Capas del protocolo y evidencia
 
-Este documento describe lo observado por el proyecto para interoperabilidad. No es documentación del fabricante ni implica que todos los controladores Runxin usen el mismo protocolo.
+Ypsilon separa explícitamente las capas:
 
-## Capas en el dispositivo probado
+```text
+Política Home Assistant -> cliente/códec F79D -> trama Runxin cruda
+                                                -> transporte -> dispositivo
+```
 
-Una transacción local normal contiene dos protocolos independientes:
+El paquete `runxin/` no depende de Home Assistant ni de BroadLink. `transport/broadlink_bl3372.py` concentra autenticación, sesión, cifrado y política de reintentos BroadLink.
 
-1. una trama de producto Runxin/F79D en bruto;
-2. una envolvente de transporte BroadLink BL3372 que transporta esa trama.
+## Trama F79D
 
-La arquitectura 2.4.x mantiene ambas capas separadas.
+El controlador probado utiliza una trama exterior que empieza por `5A 5C` y termina en `A5`, con una trama interior `DF FD ... DE`. Ambas capas llevan checksum aditivo de 8 bits.
 
-### Trama Runxin en bruto
+Opcodes observados:
 
-El F79D probado usa una trama exterior que empieza por `5A 5C` y termina en `A5`, con una trama interior que empieza por `DF FD` y termina en `DE`. Ambas capas incluyen un checksum aditivo de 8 bits. El opcode de petición es `0x09` para consultas de campos y `0x19` para escrituras de control. Las respuestas observadas usan `0xC9` y `0xD9` respectivamente.
+- `0x09` — consulta de campos;
+- `0x19` — control/escritura;
+- respuestas `0xC9` y `0xD9` respectivamente.
 
-Los datos de campos se representan en grupos de tres bytes:
+Cada campo viaja como:
 
 ```text
 [field_id, byte_1, byte_2]
 ```
 
-El significado de los bytes depende del campo. `runxin/fields.py` registra explícitamente los codecs conocidos de lectura/escritura y su evidencia.
+No existe una endianidad global. El catálogo de `runxin/fields.py` es la autoridad por campo.
 
-### Envolvente BL3372
+## Correcciones 2.6.0
 
-El BL3372 antepone una longitud little-endian de dos bytes a la trama Runxin antes de enviarla mediante el comando BroadLink `0x6A`. Autenticación, cifrado, errores externos, política de reintentos y este prefijo de longitud pertenecen al transporte.
+El códec WaterDevice confirma una asimetría importante:
 
-`protocol.py` mantiene `pack_tfb()` / `unpack_tfb()` solo por compatibilidad con scripts antiguos de investigación. El código nuevo de protocolo debe vivir en `runxin/`.
+- campo 7 (`flowRateOff`) — `u16_le`;
+- campo 11 (`flowRate`) — `u16_be`, porque la aplicación invierte explícitamente este campo antes del decodificador genérico.
 
-## Codecs de campos F79D
+Los campos de volumen por parejas también dependen de `waterVolumeUnit`; no existe una fórmula universal. Véase [`f79d.es.md`](f79d.es.md).
 
-Los codecs observados incluyen:
+## Modelo de evidencia
 
-- `u8`;
-- `u16_le`;
-- `u16_be`;
-- `time_hm` — hora del día, hora/minuto;
-- `duration_min_sec` — duración, minuto/segundo;
-- `bool`;
-- `volume_pair` — campo base más continuación;
-- `reminder_flags` — campo 33 dividido en dos flags booleanos.
+- `legacy_app_codec` — recuperado del códec WaterDevice;
+- `device_state_observed` — observado en datos reales;
+- `hardware_write_verified` — SET local + GET físico nuevo + validación semántica;
+- `cloud_write_observed` — cambio observado en la app cloud;
+- `inferred` — interpretación todavía no confirmada directamente.
 
-Las escrituras de hora y duración usan codecs semánticamente distintos aunque ocupen dos bytes. Esto evita tratar una duración como hora del día solo porque su forma en el cable sea parecida.
+Un ACK no es evidencia física. En la 2.6 se retira `hardware_write_verified` del campo 7 porque la implementación anterior podía autoconfirmar una endianidad incorrecta.
 
-Los cuatro valores de volumen de agua usan dos IDs consecutivos. Si falta la continuación se devuelve `None`, nunca un cero falso plausible.
+## Semántica de las escrituras
 
-## Niveles de evidencia
+Las lecturas pueden reintentarse de forma limitada porque son idempotentes. Las escrituras no se duplican a ciegas:
 
-`runxin/fields.py` usa etiquetas conservadoras:
+1. enviar SET una sola vez;
+2. si la respuesta es ambigua, no reenviar;
+3. hacer un GET físico nuevo;
+4. reconciliar el estado;
+5. confirmar únicamente cuando el valor real coincide.
 
-- `legacy_app_codec`: recuperado del codec de la antigua app WaterDevice;
-- `device_state_observed`: observado en estado/capturas reales del Ypsilon/F79D;
-- `hardware_write_verified`: SET local probado de extremo a extremo y confirmado mediante lectura física independiente;
-- `cloud_write_observed`: cambio observado mediante la aplicación cloud antigua;
-- `inferred`: interpretación todavía no confirmada directamente.
+## Superficie Home Assistant
 
-Un ACK de protocolo no basta para `hardware_write_verified`. Consulta [`hardware-verification.es.md`](hardware-verification.es.md).
+Que el códec sepa serializar un campo no implica que sea seguro exponerlo. `write_fields` queda limitado a configuraciones reversibles y valida rangos/unidades.
 
-La existencia de un campo en la app antigua no demuestra que todos los modelos/firmwares Runxin lo implementen igual. La capacidad de escritura del codec también es distinta de la lista más restringida de escrituras seguras expuestas por Home Assistant.
+Los campos mecánicos 34 y 49 quedan fuera del servicio genérico y deben controlarse mediante las vías específicas de regeneración y vacaciones.
 
-## Semántica de entrega de lecturas y escrituras
+## Vacaciones
 
-Las lecturas son idempotentes y un transport puede aplicar reintentos limitados. Las escrituras no se consideran idempotentes. Si la entrega de un SET queda ambigua, el transport no debe duplicarlo ciegamente; primero debe consultar y reconciliar el estado físico.
+WaterDevice usa el campo 49 como flag de vacaciones y el 34 como modo físico. La UI normal entra en vacaciones desde el modo 0 y sale desde el modo estable 8. Ypsilon separa flag, transición mecánica y estado estable, manteniendo siempre visible el `station` bruto.
+
+## Transporte BL3372
+
+El BL3372 antepone una longitud little-endian de dos bytes a la trama Runxin y la envía mediante el comando BroadLink `0x6A`. Cifrado, autenticación, outer errors y reintentos son responsabilidad del transporte.
 
 ## Límite de compatibilidad
 
-El proyecto tiene evidencia fuerte para el perfil F79D y el Ypsilon G6 probado. Las aplicaciones antiguas contienen comportamiento dependiente del modelo; eso justifica facilitar la reutilización, no llamar al mapa actual de 52 campos una API universal de Runxin.
-
-Para otro controlador, primero hay que establecer:
-
-- si comparte realmente el framing `5A 5C` / `DF FD`;
-- su valor de modelo;
-- qué IDs de campo existen;
-- byte order y escalado de lectura;
-- encoding y rangos seguros de escritura;
-- semántica de fases/máquina de estados.
-
-Consulta [`adding-a-device-profile.es.md`](adding-a-device-profile.es.md).
-
-## Seguridad e higiene de investigación
-
-Aquí solo deben entrar hechos de interoperabilidad y código escrito de forma independiente. No subas APK, firmware, binarios propietarios, claves de emparejamiento, credenciales, tokens privados ni capturas sin sanear con secretos.
+La evidencia fuerte corresponde al conjunto ATH/BWT Ypsilon G6 + Runxin F79D + BroadLink BL3372 probado. Otros controladores o firmwares deben volver a validar framing, campos, endianidad, escalado, escrituras y máquina de estados.

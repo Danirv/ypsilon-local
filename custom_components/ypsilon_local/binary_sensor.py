@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import YpsilonEntity
+from .runxin.semantics import SYSTEM_CLOSE_REASON_KEYS
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -80,7 +81,9 @@ BINARY_SENSORS = (
 )
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
     coordinator = entry.runtime_data
     async_add_entities(YpsilonBinarySensor(coordinator, entry, desc) for desc in BINARY_SENSORS)
 
@@ -116,7 +119,7 @@ class YpsilonBinarySensor(YpsilonEntity, BinarySensorEntity):
             attributes["stale"] = data.get("_stale", False)
             attributes["data_age_seconds"] = data.get("_dataAgeSeconds")
         if self.entity_description.key == "valve_closed_alarm":
-            attributes["reason_code"] = (self.coordinator.data or {}).get(
-                "systemCloseReason"
-            )
+            code = (self.coordinator.data or {}).get("systemCloseReason")
+            attributes["reason_code"] = code
+            attributes["reason"] = SYSTEM_CLOSE_REASON_KEYS.get(code, "unknown" if code else None)
         return attributes

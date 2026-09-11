@@ -10,6 +10,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -34,6 +35,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     FIELD_CURRENT_TIME,
+    FIELD_HOLIDAY_MODE,
     FIELD_SYSTEM_MODE,
     MAX_TOLERATED_FAILURES,
     MECHANICAL_VERIFY_INTERVAL,
@@ -42,6 +44,7 @@ from .const import (
     WRITE_VERIFY_TIMEOUT,
 )
 from .protocol import BOOL_FIELDS, CLOCK_FIELDS, FIELD_NAMES
+from .runxin.semantics import vacation_status
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,9 +62,7 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.client = client
         self._field52_cache = field52_cache
         options = entry.options
-        self.scan_interval = int(
-            options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-        )
+        self.scan_interval = int(options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
         self.active_scan_interval = int(
             options.get(CONF_ACTIVE_SCAN_INTERVAL, DEFAULT_ACTIVE_SCAN_INTERVAL)
         )
@@ -83,9 +84,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._is_active = False
         self._last_clock_sync_attempt: float | None = None
         self._clock_syncs = 0
-        # Serialise the entire semantic mutation, not only individual socket
-        # transactions. This prevents SET A -> GET A verification from being
-        # interleaved with SET B or automatic clock correction.
         self._mutation_lock = asyncio.Lock()
 
         super().__init__(
@@ -97,12 +95,23 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             always_update=True,
         )
 
+    @staticmethod
+    def _decorate_semantics(data: dict[str, Any]) -> None:
+        data["_vacationStatus"] = vacation_status(
+            data.get("vacationPattern"), data.get("station")
+        )
+
     def _device_is_busy(self, data: dict[str, Any]) -> bool:
-        """Return true while flow or a moving/regeneration phase is active."""
+        """Return true while real flow or a moving regeneration phase is active."""
         if data.get("_raw_flowRate"):
             return True
 
         station = data.get("station")
+        # In the legacy app, vacation mode settles at systemMode/station 8.
+        # Treat that combination as a stable state, not perpetual mechanical
+        # activity, otherwise adaptive polling stays fast for the whole holiday.
+        if data.get("vacationPattern") and station == 8:
+            return False
         return station not in (None, 0, 5)
 
     def _apply_interval(self, data: dict[str, Any]) -> None:
@@ -134,7 +143,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @staticmethod
     def _clock_drift(device_clock: str | None) -> int | None:
-        """Minutes the valve clock is ahead of local time, or None."""
         if not device_clock:
             return None
         try:
@@ -154,7 +162,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @staticmethod
     def _data_age_seconds(data: dict[str, Any]) -> float | None:
-        """Return age of the last successful physical read."""
         last_success = data.get("_lastSuccessfulUpdate")
         if last_success is None:
             return None
@@ -164,13 +171,10 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return None
 
     async def _async_sync_clock_if_needed(self, data: dict[str, Any]) -> None:
-        """Correct the valve clock when drift exceeds the configured tolerance."""
         drift = self._clock_drift(data.get("currentTime"))
         data["_clockDriftMinutes"] = drift
         data["_clockSyncs"] = self._clock_syncs
-        if drift is None or not self.auto_sync_clock:
-            return
-        if abs(drift) <= self.clock_tolerance:
+        if drift is None or not self.auto_sync_clock or abs(drift) <= self.clock_tolerance:
             return
 
         now = time.monotonic()
@@ -182,6 +186,7 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_clock_sync_attempt = now
 
         local = dt_util.now()
+        expected_time = f"{local.hour:02d}:{local.minute:02d}:00"
         _LOGGER.info(
             "Valve clock is %+d min out (device %s, local %02d:%02d); correcting",
             drift,
@@ -189,7 +194,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             local.hour,
             local.minute,
         )
-        expected_time = f"{local.hour:02d}:{local.minute:02d}:00"
 
         async with self._mutation_lock:
             write_error: YpsilonConnectionError | None = None
@@ -199,8 +203,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     {FIELD_CURRENT_TIME: (local.hour, local.minute)},
                 )
             except YpsilonConnectionError as err:
-                # Delivery is ambiguous: do not resend. The controller may have
-                # applied the SET despite losing the transport response.
                 write_error = err
 
             try:
@@ -212,14 +214,12 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if confirmed.get("currentTime") != expected_time:
                 if write_error is not None:
                     _LOGGER.warning(
-                        "Valve clock write had an ambiguous transport result and "
-                        "read-back did not confirm it: %s",
+                        "Valve clock write had an ambiguous transport result and read-back did not confirm it: %s",
                         write_error,
                     )
                 else:
                     _LOGGER.warning(
-                        "Valve clock correction was ACKed but not confirmed "
-                        "(expected %s, got %s)",
+                        "Valve clock correction was ACKed but not confirmed (expected %s, got %s)",
                         expected_time,
                         confirmed.get("currentTime"),
                     )
@@ -234,8 +234,8 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _decorate_successful_read(
         self, data: dict[str, Any], started: float
     ) -> dict[str, Any]:
-        """Add coordinator diagnostics to a fresh physical read."""
         self._consecutive_failures = 0
+        self._decorate_semantics(data)
         self._apply_interval(data)
         data.update(
             _lastSuccessfulUpdate=dt_util.utcnow(),
@@ -255,7 +255,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return data
 
     async def _async_strict_read(self) -> dict[str, Any]:
-        """Read the device without stale-state fallback."""
         started = time.perf_counter()
         data = await self.hass.async_add_executor_job(
             self.client.read_state, self._field52_cache
@@ -272,12 +271,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._failed_polls += 1
             self._consecutive_failures += 1
             if self.data and self._consecutive_failures <= MAX_TOLERATED_FAILURES:
-                _LOGGER.debug(
-                    "Poll failed (%s), keeping last state (%d/%d)",
-                    err,
-                    self._consecutive_failures,
-                    MAX_TOLERATED_FAILURES,
-                )
                 stale = dict(self.data)
                 stale.update(
                     _lastPollSuccessful=False,
@@ -300,7 +293,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @staticmethod
     def _expected_readback(values: dict[int, Any]) -> dict[str, Any]:
-        """Translate wire-format write values to their decoded read-back form."""
         expected: dict[str, Any] = {}
         for field, value in values.items():
             name = FIELD_NAMES.get(field)
@@ -352,13 +344,7 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         *,
         accept_station_active: bool = False,
     ) -> None:
-        """Write once, then reconcile the physical controller through read-back.
-
-        The whole mutation is serialised. An ACK is not considered state, and
-        a lost/failed transport response never triggers a blind resend: the
-        command may already have been executed. Instead, strict physical reads
-        determine whether the requested state was actually reached.
-        """
+        """Write once, then reconcile the controller through strict read-back."""
         expected = self._expected_readback(values)
 
         async with self._mutation_lock:
@@ -368,17 +354,14 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except YpsilonConnectionError as err:
                 write_error = err
                 _LOGGER.warning(
-                    "Write transport result was ambiguous; reconciling physical "
-                    "state without resending: %s",
+                    "Write transport result was ambiguous; reconciling physical state without resending: %s",
                     err,
                 )
 
             self._active_until = time.monotonic() + ACTIVE_LINGER_SECONDS
             mechanical = FIELD_SYSTEM_MODE in values
             timeout = MECHANICAL_VERIFY_TIMEOUT if mechanical else WRITE_VERIFY_TIMEOUT
-            interval = (
-                MECHANICAL_VERIFY_INTERVAL if mechanical else WRITE_VERIFY_INTERVAL
-            )
+            interval = MECHANICAL_VERIFY_INTERVAL if mechanical else WRITE_VERIFY_INTERVAL
             deadline = time.monotonic() + timeout
             last_data: dict[str, Any] | None = None
             last_error: YpsilonConnectionError | None = None
@@ -397,7 +380,6 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     ):
                         self.async_set_updated_data(last_data)
                         return
-
                     self.async_set_updated_data(last_data)
 
                 remaining = deadline - time.monotonic()
@@ -422,3 +404,33 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         f"Write ACKed but not confirmed within {timeout:.0f}s ({mismatch})"
                     ) from last_error
                 await asyncio.sleep(min(interval, remaining))
+
+    async def async_set_vacation_mode(self, enabled: bool) -> None:
+        """Apply the legacy application's vacation-mode state-machine guards."""
+        current = await self._async_strict_read()
+        station = current.get("station")
+        vacation = bool(current.get("vacationPattern"))
+
+        if enabled:
+            if vacation:
+                self.async_set_updated_data(current)
+                return
+            if station != 0:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="vacation_enable_invalid_state",
+                    translation_placeholders={"station": str(station)},
+                )
+            await self.async_write_and_verify({FIELD_HOLIDAY_MODE: 1})
+            return
+
+        if not vacation:
+            self.async_set_updated_data(current)
+            return
+        if station != 8:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="vacation_disable_invalid_state",
+                translation_placeholders={"station": str(station)},
+            )
+        await self.async_write_and_verify({FIELD_HOLIDAY_MODE: 0})
