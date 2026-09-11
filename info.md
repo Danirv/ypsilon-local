@@ -1,19 +1,20 @@
-# Ypsilon 2.4.1
+# Ypsilon 2.5.0
 
 Local Home Assistant integration for compatible Runxin F79D / BroadLink BL3372 water softeners, tested with ATH/BWT Ypsilon G6.
 
-## 2.4.1
+## 2.5.0
 
-This maintenance release hardens write delivery and state reconciliation without changing entity ids, config-entry identity or the supported hardware gate:
+This release improves semantic accuracy without widening the mechanical write surface:
 
-- serializes the complete `SET -> strict local read-back -> reconciliation` sequence;
-- never blindly retries an ambiguous BroadLink write; physical state is read before deciding the outcome;
-- separates bounded read retries from write delivery semantics;
-- records end-to-end hardware verification for device time, continuous-flow limit, flow cutoff, regeneration time, salt addition and raw-water hardness;
-- keeps forced regeneration and vacation mode explicitly pending hardware-write verification;
-- exposes stale-data age during tolerated communication failures;
-- keeps state attributes language-neutral and improves EN/ES/CA translations;
-- separates clock-time and duration codecs for future Runxin profiles;
-- makes publication and protocol audits version-independent.
+- adds a read-only Work pattern enum for F79D field 9 using the exact legacy WaterDevice code mapping;
+- keeps the stable regeneration-mode states while presenting them more clearly as metered/volume-based versus time/day-based;
+- corrects Home Assistant state classes so historical weekly averages and controller periodic quantities are not misrepresented as present-time measurements;
+- keeps daily consumption as `total_increasing`, and instantaneous flow plus remaining treatment capacity as `measurement`;
+- centralizes F79D enum semantics in the transport-neutral protocol layer;
+- enriches diagnostics with interpreted protocol codes while retaining raw state;
+- documents verified cubic-metre volume and flow semantics and leaves cloud-only `regenerationTimes` intentionally unmapped;
+- adds regression tests for enum mappings and state-class choices.
+
+No new protocol writes are enabled in this release. Work pattern remains read-only, and the existing conservative write/read-back policy is unchanged.
 
 The reusable `runxin/` package remains independent from Home Assistant and BroadLink. The Home Assistant integration itself still supports only the verified F79D model 9 + BroadLink BL3372 (`0x520F`) combination until additional hardware is tested.

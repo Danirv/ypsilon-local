@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## [2.5.0] - 2026-09-11
+
+### Added
+- Read-only `Work pattern` enum for F79D field 9 using the exact legacy WaterDevice code mapping.
+- Centralized transport-neutral semantic mappings for F79D station, unit, regeneration-pattern and work-pattern codes.
+- Semantic protocol summary in Home Assistant diagnostics while retaining the raw controller state.
+- Regression tests for work-pattern mapping and Home Assistant state-class choices.
+
+### Changed
+- Correct Home Assistant statistics semantics: `averageWeeklyWaterConsumption` and `periodicWaterProduction` no longer declare `measurement`, because the former is already a historical aggregation and the latter is not a present-time measurement or cumulative meter.
+- Keep `dailyWaterConsumption` as `total_increasing`, and keep instantaneous flow and remaining treatment capacity as `measurement`.
+- Improve regeneration-mode translations without changing the stable `flow` / `time` entity states.
+- Clarify time-mode day labels and rename the salt configuration as salt added.
+- Mark field 9 as observed on real hardware while keeping it read-only; no new mechanical writes are enabled.
+- Document the verified cubic-metre volume/flow interpretation and keep cloud-only `regenerationTimes` intentionally unmapped locally.
+
 ## [2.4.1] - 2026-09-07
 
 ### Added
@@ -118,12 +134,3 @@ All notable changes to this project are documented here.
 
 ## [0.8.0]
 - Added bidirectional control, DHCP discovery and MAC-based identity/migration.
-
-## [0.4.0]
-- Distinguished transient BroadLink `-5` behavior from expired-session conditions and reduced bus contention.
-
-## [0.3.0]
-- Improved volume/state classes, diagnostics and temporary communication-failure tolerance.
-
-## [0.2.0]
-- Corrected flow unit/scale behavior and daily-consumption modeling.

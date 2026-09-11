@@ -16,8 +16,6 @@ from enum import Enum
 
 
 class FieldCodec(str, Enum):
-    """How the two bytes attached to a field id are interpreted."""
-
     U8 = "u8"
     U16_LE = "u16_le"
     U16_BE = "u16_be"
@@ -30,8 +28,6 @@ class FieldCodec(str, Enum):
 
 
 class Evidence(str, Enum):
-    """Conservative provenance labels for reverse-engineered field knowledge."""
-
     LEGACY_APP_CODEC = "legacy_app_codec"
     DEVICE_STATE_OBSERVED = "device_state_observed"
     HARDWARE_WRITE_VERIFIED = "hardware_write_verified"
@@ -41,8 +37,6 @@ class Evidence(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class FieldSpec:
-    """One F79D field definition."""
-
     id: int
     name: str
     read_codec: FieldCodec = FieldCodec.U8
@@ -77,7 +71,8 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(7, "flowRateOff", FieldCodec.U16_BE, FieldCodec.U16_BE, evidence=HW_WRITE,
               notes="Hundredths of the selected flow unit."),
     FieldSpec(8, "waterVolumeUnit", evidence=OBSERVED),
-    FieldSpec(9, "workPattern", write_codec=FieldCodec.U8),
+    FieldSpec(9, "workPattern", write_codec=FieldCodec.U8, evidence=OBSERVED,
+              notes="Legacy WaterDevice enum codes 0..9; exposed read-only by HA."),
     FieldSpec(10, "regeneratingTriggerTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM, evidence=HW_WRITE),
     FieldSpec(11, "flowRate", FieldCodec.U16_BE, evidence=OBSERVED,
               notes="Hundredths of the selected flow unit; raw counter is preserved."),
