@@ -12,17 +12,17 @@
   "options": {"step": {"init": {
     "title": "Opciones de Ypsilon",
     "data": {"scan_interval": "Intervalo de consulta (s)", "adaptive_polling": "Sondeo adaptativo", "active_scan_interval": "Intervalo durante actividad (s)", "auto_sync_clock": "Sincronizar el reloj automáticamente", "clock_tolerance_minutes": "Tolerancia del reloj (min)"},
-    "data_description": {"adaptive_polling": "Consulta con más frecuencia mientras circula agua o la válvula está en una transición mecánica de regeneración o vacaciones.", "active_scan_interval": "Solo se utiliza cuando el sondeo adaptativo está activado.", "auto_sync_clock": "Corrige la hora de la válvula cuando se desvía, incluido el cambio horario estacional que el descalcificador no aplica por sí mismo.", "clock_tolerance_minutes": "Desviación máxima permitida antes de corregir la hora."}
+    "data_description": {"adaptive_polling": "Consulta con más frecuencia mientras circula agua o la válvula está en una transición mecánica de regeneración o vacaciones detectada en lectura.", "active_scan_interval": "Solo se utiliza cuando el sondeo adaptativo está activado.", "auto_sync_clock": "Corrige la hora de la válvula cuando se desvía, incluido el cambio horario estacional que el descalcificador no aplica por sí mismo.", "clock_tolerance_minutes": "Desviación máxima permitida antes de corregir la hora."}
   }}},
   "entity": {
     "sensor": {
       "flow_rate": {"name": "Caudal"},
       "daily_water": {"name": "Consumo diario"},
       "residual_water": {"name": "Capacidad de tratamiento restante"},
-      "weekly_average": {"name": "Consumo medio semanal"},
+      "weekly_average": {"name": "Consumo semanal medio del controlador"},
       "operation_day": {"name": "Intervalo de regeneración (modo tiempo)"},
       "remaining_day": {"name": "Días restantes (modo tiempo)"},
-      "periodic_water": {"name": "Capacidad por ciclo"},
+      "periodic_water": {"name": "Capacidad de tratamiento por ciclo"},
       "regeneration_pattern": {"name": "Modo de regeneración", "state": {"flow": "Por volumen / contador", "time": "Por tiempo / días"}},
       "work_pattern": {"name": "Patrón de trabajo", "state": {"downflow_meter_delayed": "Flujo descendente · contador retardado", "downflow_meter_immediate": "Flujo descendente · contador inmediato", "downflow_intelligent_meter_delayed": "Flujo descendente · contador inteligente retardado", "upflow_meter_delayed": "Flujo ascendente · contador retardado", "upflow_meter_immediate": "Flujo ascendente · contador inmediato", "upflow_intelligent_meter_delayed": "Flujo ascendente · contador inteligente retardado", "filter_type": "Tipo filtro", "meter_delayed": "Contador retardado", "meter_immediate": "Contador inmediato", "intelligent_meter_delayed": "Contador inteligente retardado"}},
       "maximum_regeneration_interval": {"name": "Intervalo máximo de regeneración"},
@@ -67,13 +67,12 @@
       "filter_reminder": {"name": "Recordatorio del material filtrante"},
       "communication_problem": {"name": "Problema de comunicación local"}
     },
-    "number": {"salt_addition": {"name": "Sal añadida"}, "raw_water_hardness": {"name": "Dureza del agua de entrada"}, "continuous_water_time": {"name": "Límite de flujo continuo"}, "flow_rate_off": {"name": "Límite de cierre por caudal"}},
+    "number": {"salt_addition": {"name": "Cantidad de sal añadida"}, "raw_water_hardness": {"name": "Dureza del agua de entrada"}, "continuous_water_time": {"name": "Límite de flujo continuo"}, "flow_rate_off": {"name": "Límite de cierre por caudal"}},
     "time": {"regenerating_trigger_time": {"name": "Hora de regeneración"}, "device_clock": {"name": "Hora del dispositivo"}},
-    "switch": {"vacation_mode": {"name": "Modo vacaciones"}},
     "button": {"force_regeneration": {"name": "Forzar regeneración"}, "sync_clock": {"name": "Sincronizar reloj"}}
   },
   "services": {
-    "write_fields": {"name": "Escribir campos", "description": "Escribe campos de configuración F79D reversibles en una sola trama 0x19. Los campos mecánicos o de máquina de estados deben usar sus controles específicos.", "fields": {"config_entry_id": {"name": "Dispositivo", "description": "Entrada de configuración."}, "fields": {"name": "Campos", "description": "Mapa de id de campo a valor bruto. Para campos de hora usa [hora, minuto]. El campo 7 usa centésimas en bruto."}}},
+    "write_fields": {"name": "Escribir campos", "description": "Escribe campos de configuración F79D reversibles en una sola trama 0x19. Los campos mecánicos o de máquina de estados solo se exponen cuando su acción local ha sido verificada.", "fields": {"config_entry_id": {"name": "Dispositivo", "description": "Entrada de configuración."}, "fields": {"name": "Campos", "description": "Mapa de id de campo a valor bruto. Para campos de hora usa [hora, minuto]. El campo 7 usa centésimas en bruto."}}},
     "advance_phase": {"name": "Avanzar fase", "description": "Escribe el modo del sistema para mover la máquina de estados de regeneración (0-4). Operación mecánica: usar con precaución.", "fields": {"config_entry_id": {"name": "Dispositivo", "description": "Entrada de configuración."}, "phase": {"name": "Fase", "description": "0 servicio, 1-4 fases de regeneración."}}}
   },
   "exceptions": {
@@ -87,8 +86,6 @@
     "service_field_invalid_value": {"message": "El campo {field} tiene un valor no válido: {value}."},
     "service_field_out_of_range": {"message": "El valor {value} del campo {field} queda fuera del rango permitido {minimum}–{maximum}."},
     "service_write_failed": {"message": "No se ha podido confirmar la escritura F79D: {error}"},
-    "service_phase_failed": {"message": "No se ha podido confirmar el cambio de fase de regeneración: {error}"},
-    "vacation_enable_invalid_state": {"message": "El modo vacaciones solo se puede activar con la válvula en servicio (estación actual: {station})."},
-    "vacation_disable_invalid_state": {"message": "Solo se puede salir del modo vacaciones cuando la válvula ha llegado al estado estable de vacaciones (estación 8; estación actual: {station})."}
+    "service_phase_failed": {"message": "No se ha podido confirmar el cambio de fase de regeneración: {error}"}
   }
 }
