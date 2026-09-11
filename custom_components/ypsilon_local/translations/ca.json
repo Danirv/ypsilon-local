@@ -12,17 +12,17 @@
   "options": {"step": {"init": {
     "title": "Opcions de Ypsilon",
     "data": {"scan_interval": "Interval de consulta (s)", "adaptive_polling": "Sondeig adaptatiu", "active_scan_interval": "Interval quan hi ha activitat (s)", "auto_sync_clock": "Sincronitza el rellotge automàticament", "clock_tolerance_minutes": "Tolerància del rellotge (min)"},
-    "data_description": {"adaptive_polling": "Consulta més sovint mentre passa aigua o la vàlvula està en una transició mecànica de regeneració o vacances.", "active_scan_interval": "Només s'aplica amb el sondeig adaptatiu actiu.", "auto_sync_clock": "Corregeix l'hora de la vàlvula quan es desvia. Cobreix també el canvi d'hora estacional, que el descalcificador no aplica per si mateix.", "clock_tolerance_minutes": "Desviació màxima que es tolera abans de corregir."}
+    "data_description": {"adaptive_polling": "Consulta més sovint mentre passa aigua o la vàlvula està en una transició mecànica de regeneració o de vacances detectada en lectura.", "active_scan_interval": "Només s'aplica amb el sondeig adaptatiu actiu.", "auto_sync_clock": "Corregeix l'hora de la vàlvula quan es desvia. Cobreix també el canvi d'hora estacional, que el descalcificador no aplica per si mateix.", "clock_tolerance_minutes": "Desviació màxima que es tolera abans de corregir."}
   }}},
   "entity": {
     "sensor": {
       "flow_rate": {"name": "Cabal"},
       "daily_water": {"name": "Consum diari"},
       "residual_water": {"name": "Capacitat de tractament restant"},
-      "weekly_average": {"name": "Consum mitjà setmanal"},
+      "weekly_average": {"name": "Consum setmanal mitjà del controlador"},
       "operation_day": {"name": "Interval de regeneració (mode temps)"},
       "remaining_day": {"name": "Dies restants (mode temps)"},
-      "periodic_water": {"name": "Capacitat per cicle"},
+      "periodic_water": {"name": "Capacitat de tractament per cicle"},
       "regeneration_pattern": {"name": "Mode de regeneració", "state": {"flow": "Per volum / comptador", "time": "Per temps / dies"}},
       "work_pattern": {"name": "Patró de treball", "state": {"downflow_meter_delayed": "Flux descendent · comptador retardat", "downflow_meter_immediate": "Flux descendent · comptador immediat", "downflow_intelligent_meter_delayed": "Flux descendent · comptador intel·ligent retardat", "upflow_meter_delayed": "Flux ascendent · comptador retardat", "upflow_meter_immediate": "Flux ascendent · comptador immediat", "upflow_intelligent_meter_delayed": "Flux ascendent · comptador intel·ligent retardat", "filter_type": "Tipus filtre", "meter_delayed": "Comptador retardat", "meter_immediate": "Comptador immediat", "intelligent_meter_delayed": "Comptador intel·ligent retardat"}},
       "maximum_regeneration_interval": {"name": "Interval màxim de regeneració"},
@@ -67,13 +67,12 @@
       "filter_reminder": {"name": "Recordatori del material filtrant"},
       "communication_problem": {"name": "Problema de comunicació local"}
     },
-    "number": {"salt_addition": {"name": "Sal afegida"}, "raw_water_hardness": {"name": "Duresa de l'aigua d'entrada"}, "continuous_water_time": {"name": "Límit flux d'aigua continu"}, "flow_rate_off": {"name": "Tancament per cabal màxim"}},
+    "number": {"salt_addition": {"name": "Quantitat de sal afegida"}, "raw_water_hardness": {"name": "Duresa de l'aigua d'entrada"}, "continuous_water_time": {"name": "Límit flux d'aigua continu"}, "flow_rate_off": {"name": "Tancament per cabal màxim"}},
     "time": {"regenerating_trigger_time": {"name": "Hora de regeneració"}, "device_clock": {"name": "Hora del dispositiu"}},
-    "switch": {"vacation_mode": {"name": "Mode vacances"}},
     "button": {"force_regeneration": {"name": "Forçar regeneració"}, "sync_clock": {"name": "Sincronitza el rellotge"}}
   },
   "services": {
-    "write_fields": {"name": "Escriu camps", "description": "Escriu camps de configuració F79D reversibles en una sola trama 0x19. Els camps mecànics o de màquina d'estats han d'utilitzar els seus controls específics.", "fields": {"config_entry_id": {"name": "Dispositiu", "description": "Entrada de configuració."}, "fields": {"name": "Camps", "description": "Diccionari id_camp: valor cru. Per a camps d'hora, [hora, minut]. El camp 7 usa centèsimes en cru."}}},
+    "write_fields": {"name": "Escriu camps", "description": "Escriu camps de configuració F79D reversibles en una sola trama 0x19. Els camps mecànics o de màquina d'estats només s'exposen quan la seva acció local ha estat verificada.", "fields": {"config_entry_id": {"name": "Dispositiu", "description": "Entrada de configuració."}, "fields": {"name": "Camps", "description": "Diccionari id_camp: valor cru. Per a camps d'hora, [hora, minut]. El camp 7 usa centèsimes en cru."}}},
     "advance_phase": {"name": "Avança la fase", "description": "Escriu el mode del sistema per moure la màquina d'estats de regeneració (0-4). Operació mecànica: utilitza-ho amb cura.", "fields": {"config_entry_id": {"name": "Dispositiu", "description": "Entrada de configuració."}, "phase": {"name": "Fase", "description": "0 servei, 1-4 etapes de regeneració."}}}
   },
   "exceptions": {
@@ -87,8 +86,6 @@
     "service_field_invalid_value": {"message": "El camp {field} té un valor no vàlid: {value}."},
     "service_field_out_of_range": {"message": "El valor {value} del camp {field} queda fora del rang permès {minimum}–{maximum}."},
     "service_write_failed": {"message": "No s'ha pogut confirmar l'escriptura F79D: {error}"},
-    "service_phase_failed": {"message": "No s'ha pogut confirmar el canvi de fase de regeneració: {error}"},
-    "vacation_enable_invalid_state": {"message": "El mode vacances només es pot activar amb la vàlvula en servei (estació actual: {station})."},
-    "vacation_disable_invalid_state": {"message": "Només es pot sortir del mode vacances quan la vàlvula ha arribat a l'estat estable de vacances (estació 8; estació actual: {station})."}
+    "service_phase_failed": {"message": "No s'ha pogut confirmar el canvi de fase de regeneració: {error}"}
   }
 }
