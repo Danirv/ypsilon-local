@@ -7,6 +7,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import struct
 import sys
 import types
 
@@ -17,7 +18,6 @@ PLATFORMS = {
     "sensor.py": "sensor",
     "binary_sensor.py": "binary_sensor",
     "number.py": "number",
-    "switch.py": "switch",
     "button.py": "button",
     "time.py": "time",
 }
@@ -71,6 +71,10 @@ def protocol_checks() -> list[str]:
     req(p.encode_field(47, 400) == [47, 0x90, 0x01], "field47 encoding")
     req(p.encode_field(7, 200) == [7, 0xC8, 0], "field7 must be little-endian")
     req(p.encode_field(10, (2, 30)) == [10, 2, 30], "field10 encoding")
+    # Field 49 remains encodable at the reusable codec layer because that is
+    # what the recovered WaterDevice codec defines; HA policy deliberately does
+    # not expose it as a write after current-hardware read-back disproved it.
+    req(p.encode_field(49, 1) == [49, 1, 0], "field49 legacy codec encoding")
     req(p.WRITE_U16 == {7, 25, 47, 52}, "WRITE_U16 set")
     req(p.WRITE_U16_BE == set(), "WRITE_U16_BE should be empty for writable fields")
     req(p.BE16_FIELDS == {11}, "only field11 should read as BE16")
@@ -97,6 +101,8 @@ def protocol_checks() -> list[str]:
         req(evidence.HARDWARE_WRITE_VERIFIED in by_id[field].evidence, f"field{field} HW evidence")
     for field in (7, 34, 49):
         req(evidence.HARDWARE_WRITE_VERIFIED not in by_id[field].evidence, f"field{field} must stay pending HW")
+    req("not a measured remaining salt level" in (by_id[43].notes or ""), "field43 salt semantics")
+    req("not the vendor app's week-history total" in (by_id[39].notes or ""), "field39 weekly semantics")
 
     req(semantics.vacation_status(False, 0) == "off", "vacation off semantics")
     req(semantics.vacation_status(True, 3) == "preparing", "vacation preparing semantics")
@@ -135,6 +141,50 @@ def architecture_checks() -> list[str]:
     return errors
 
 
+def _png_size(path: Path) -> tuple[int, int] | None:
+    """Read PNG IHDR dimensions without third-party dependencies."""
+    data = path.read_bytes()
+    if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
+        return None
+    return struct.unpack(">II", data[16:24])
+
+
+def branding_checks() -> list[str]:
+    errors: list[str] = []
+    brand = HERE / "brand"
+    expected = {
+        "icon.png": (256, 256),
+        "icon@2x.png": (512, 512),
+        "dark_icon.png": (256, 256),
+        "dark_icon@2x.png": (512, 512),
+    }
+    for name, size in expected.items():
+        path = brand / name
+        if not path.exists():
+            errors.append(f"brand/{name} missing")
+        elif _png_size(path) != size:
+            errors.append(f"brand/{name} must be {size[0]}x{size[1]}, got {_png_size(path)}")
+
+    for name in ("logo.png", "logo@2x.png", "dark_logo.png", "dark_logo@2x.png"):
+        path = brand / name
+        if not path.exists():
+            errors.append(f"brand/{name} missing")
+            continue
+        size = _png_size(path)
+        if size is None or size[0] <= size[1]:
+            errors.append(f"brand/{name} must be a valid landscape PNG, got {size}")
+
+    if (brand / "logo.png").exists() and (brand / "icon.png").exists():
+        if (brand / "logo.png").read_bytes() == (brand / "icon.png").read_bytes():
+            errors.append("brand logo must not reuse the square icon byte-for-byte")
+    if _png_size(brand / "logo.png") and _png_size(brand / "logo@2x.png"):
+        a = _png_size(brand / "logo.png")
+        b = _png_size(brand / "logo@2x.png")
+        if b != (a[0] * 2, a[1] * 2):
+            errors.append(f"brand/logo@2x.png must be exact 2x logo dimensions, got {b} vs {a}")
+    return errors
+
+
 def repository_checks() -> list[str]:
     errors: list[str] = []
     required = [
@@ -143,6 +193,7 @@ def repository_checks() -> list[str]:
         ".github/workflows/validate.yml", ".github/workflows/hassfest.yml",
         ".github/workflows/audit.yml", ".github/workflows/release.yml",
         "docs/architecture.md", "docs/protocol.md", "docs/f79d.md", "docs/hardware-verification.md",
+        "docs/waterdevice-audit.md",
     ]
     for rel in required:
         if not (ROOT / rel).exists():
@@ -167,19 +218,21 @@ def repository_checks() -> list[str]:
         errors.append("manifest name != Ypsilon")
     if (HERE / "strings.json").exists():
         errors.append("custom integration must not ship strings.json")
-    for asset in ("icon.png", "dark_icon.png", "logo.png", "dark_logo.png"):
-        if not (HERE / "brand" / asset).exists():
-            errors.append(f"brand/{asset} missing")
 
+    init = read("__init__.py")
+    coordinator = read("coordinator.py")
     sensors = read("sensor.py")
-    switch = read("switch.py")
     services = read("services.py")
+    if (HERE / "switch.py").exists():
+        errors.append("v2.6.1 must not expose a vacation switch platform")
+    if "Platform.SWITCH" in init:
+        errors.append("switch platform still registered")
+    if "async_set_vacation_mode" in coordinator or "FIELD_HOLIDAY_MODE" in coordinator:
+        errors.append("unverified direct vacation write remains in coordinator")
     if "UnitOfVolumeFlowRate.LITERS_PER_HOUR" in sensors:
         errors.append("legacy WaterDevice Lpm unit regressed to L/h")
     if "UnitOfVolumeFlowRate.LITERS_PER_MINUTE" not in sensors:
         errors.append("L/min flow unit missing")
-    if "_attr_entity_category" in switch:
-        errors.append("vacation switch must remain a primary entity")
     for key in ("salt_dissolution_remaining", "pause_1_remaining"):
         m = re.search(
             rf'YpsilonSensorDescription\((?:(?!YpsilonSensorDescription).)*?key="{key}"(?P<body>.*?)\n    \),',
@@ -213,6 +266,8 @@ def repository_checks() -> list[str]:
     for lang in ("ca", "en", "es"):
         translation = json.loads(read(f"translations/{lang}.json"))
         data = translation.get("entity", {})
+        if "switch" in data:
+            errors.append(f"translations/{lang}.json still contains withdrawn switch translations")
         for domain, expected in keys.items():
             missing = sorted(expected - set(data.get(domain, {})))
             if missing:
@@ -220,6 +275,13 @@ def repository_checks() -> list[str]:
         missing_exceptions = sorted(exception_keys - set(translation.get("exceptions", {})))
         if missing_exceptions:
             errors.append(f"translations/{lang}.json exceptions: missing {missing_exceptions}")
+        stale_vacation_exceptions = {
+            "vacation_enable_invalid_state", "vacation_disable_invalid_state"
+        } & set(translation.get("exceptions", {}))
+        if stale_vacation_exceptions:
+            errors.append(
+                f"translations/{lang}.json has stale vacation exceptions: {sorted(stale_vacation_exceptions)}"
+            )
         if lang == "en":
             for domain, group in data.items():
                 for key, value in group.items():
@@ -232,13 +294,13 @@ def repository_checks() -> list[str]:
 
 
 def main() -> int:
-    errors = protocol_checks() + architecture_checks() + repository_checks()
+    errors = protocol_checks() + architecture_checks() + branding_checks() + repository_checks()
     if errors:
         print("Audit failed:")
         for error in errors:
             print(f" - {error}")
         return 1
-    print("Audit OK: protocol, architecture, translations, entities and publication files are consistent.")
+    print("Audit OK: protocol, architecture, branding, translations, entities and publication files are consistent.")
     return 0
 
 
