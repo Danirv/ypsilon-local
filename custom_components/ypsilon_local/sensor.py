@@ -19,6 +19,12 @@ from homeassistant.helpers.typing import StateType
 
 from .const import FLOW_RATE_SCALE_BY_UNIT, FLOW_RATE_SCALE_DEFAULT
 from .entity import YpsilonEntity
+from .runxin.semantics import (
+    REGENERATION_PATTERN_KEYS,
+    STATION_KEYS,
+    VOLUME_UNIT_KEYS,
+    WORK_PATTERN_KEYS,
+)
 
 SOURCE_DEVICE = "Runxin F79D"
 SOURCE_INTEGRATION = "Ypsilon Local Integration"
@@ -34,20 +40,7 @@ FLOW_UNITS = {
     1: UnitOfVolumeFlowRate.LITERS_PER_HOUR,
     2: UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
 }
-STATION_KEYS = {
-    0: "in_service",
-    1: "backwash",
-    2: "brine_draw",
-    3: "brine_refill",
-    4: "fast_rinse",
-    5: "closed",
-    6: "salt_dissolving",
-    7: "pause_1",
-    8: "pause_2",
-}
-VOLUME_UNIT_KEYS = {0: "gallons", 1: "liters", 2: "cubic_meters"}
 MODEL_NAMES = {9: "F79D / Ypsilon G6"}
-REGENERATION_PATTERN_KEYS = {0: "flow", 1: "time"}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -77,9 +70,12 @@ SENSORS = (
         protocol_field="35–36", unit_kind="volume", state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2, icon="mdi:water",
     ),
+    # A weekly average is a historical aggregation, not a present-time
+    # measurement. Intentionally omit state_class so HA does not build
+    # misleading long-term measurement statistics for it.
     YpsilonSensorDescription(
         key="weekly_average", translation_key="weekly_average", field="averageWeeklyWaterConsumption",
-        protocol_field="39–40", unit_kind="volume", state_class=SensorStateClass.MEASUREMENT,
+        protocol_field="39–40", unit_kind="volume",
         suggested_display_precision=2, icon="mdi:chart-line",
     ),
     YpsilonSensorDescription(
@@ -102,14 +98,21 @@ SENSORS = (
         options=list(REGENERATION_PATTERN_KEYS.values()), icon="mdi:sync-circle",
     ),
     YpsilonSensorDescription(
+        key="work_pattern", translation_key="work_pattern", field="workPattern",
+        protocol_field="9", device_class=SensorDeviceClass.ENUM,
+        options=list(WORK_PATTERN_KEYS.values()), icon="mdi:tune-variant",
+    ),
+    YpsilonSensorDescription(
         key="maximum_regeneration_interval", translation_key="maximum_regeneration_interval",
         field="maximumRegenerationIntervalDay", protocol_field="23",
         native_unit_of_measurement=UnitOfTime.DAYS, entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:calendar-alert",
     ),
+    # This field is a controller-provided configured/cycle quantity, not a
+    # monotonically increasing consumption meter or a present-time measurement.
     YpsilonSensorDescription(
         key="periodic_water", translation_key="periodic_water", field="periodicWaterProduction",
-        protocol_field="41–42", unit_kind="volume", state_class=SensorStateClass.MEASUREMENT,
+        protocol_field="41–42", unit_kind="volume",
         suggested_display_precision=2, entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:water-check",
     ),
@@ -191,7 +194,8 @@ SENSORS = (
     YpsilonSensorDescription(
         key="transient_retries", translation_key="transient_retries", field="_transientRetries",
         source=SOURCE_INTEGRATION, state_class=SensorStateClass.TOTAL_INCREASING,
-        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:connection",
+        entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
+        icon="mdi:connection",
     ),
     YpsilonSensorDescription(
         key="reauth_count", translation_key="reauth_count", field="_reauthCount",
@@ -267,6 +271,8 @@ class YpsilonSensor(YpsilonEntity, SensorEntity):
             return VOLUME_UNIT_KEYS.get(value)
         if self.entity_description.key == "regeneration_pattern":
             return REGENERATION_PATTERN_KEYS.get(value)
+        if self.entity_description.key == "work_pattern":
+            return WORK_PATTERN_KEYS.get(value)
         if self.entity_description.value_map is not None:
             return self.entity_description.value_map.get(value, str(value))
 
@@ -299,7 +305,8 @@ class YpsilonSensor(YpsilonEntity, SensorEntity):
             attributes["f79d_protocol_field"] = self.entity_description.protocol_field
         if self.coordinator.data and (
             self.entity_description.value_map is not None
-            or self.entity_description.key in ("station", "volume_unit", "regeneration_pattern")
+            or self.entity_description.key
+            in ("station", "volume_unit", "regeneration_pattern", "work_pattern")
         ):
             raw = self.coordinator.data.get(self.entity_description.field)
             if raw is not None:
