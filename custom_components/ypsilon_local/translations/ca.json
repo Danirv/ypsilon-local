@@ -1,167 +1,18 @@
 {
   "title": "Ypsilon",
-  "config": {
-    "step": {
-      "user": {
-        "title": "Connecta el descalcificador",
-        "description": "Introdueix l'adreça IP local del BL3372.",
-        "data": {"host": "Adreça IP"}
-      },
-      "discovery_confirm": {
-        "title": "Ypsilon detectat",
-        "description": "S'ha detectat un dispositiu a la xarxa ({host}). Vols configurar-lo?"
-      },
-      "reconfigure": {
-        "title": "Canvia l'adreça IP",
-        "data": {"host": "Amfitrió"}
-      }
-    },
-    "error": {
-      "cannot_connect": "No s'ha pogut connectar amb el dispositiu.",
-      "unsupported_device": "Model no suportat."
-    },
-    "abort": {
-      "already_configured": "Aquest dispositiu ja està configurat.",
-      "wrong_device": "Aquesta IP correspon a un altre dispositiu.",
-      "reconfigure_successful": "Adreça actualitzada.",
-      "unsupported_device": "Aquest dispositiu no és un Ypsilon G6 (model 9).",
-      "cannot_connect": "No s'ha pogut connectar amb el dispositiu."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Opcions de Ypsilon",
-        "data": {
-          "scan_interval": "Interval de consulta (s)",
-          "adaptive_polling": "Sondeig adaptatiu",
-          "active_scan_interval": "Interval quan hi ha activitat (s)",
-          "auto_sync_clock": "Sincronitza el rellotge automàticament",
-          "clock_tolerance_minutes": "Tolerància del rellotge (min)"
-        },
-        "data_description": {
-          "adaptive_polling": "Consulta més sovint mentre passa aigua o hi ha una regeneració en curs.",
-          "active_scan_interval": "Només s'aplica amb el sondeig adaptatiu actiu.",
-          "auto_sync_clock": "Corregeix l'hora de la vàlvula quan es desvia. Cobreix també el canvi d'hora estacional, que el descalcificador no aplica per si mateix.",
-          "clock_tolerance_minutes": "Desviació màxima que es tolera abans de corregir."
-        }
-      }
-    }
-  },
-  "entity": {
-    "sensor": {
-      "flow_rate": {"name": "Cabal"},
-      "daily_water": {"name": "Consum diari"},
-      "residual_water": {"name": "Capacitat de tractament restant"},
-      "weekly_average": {"name": "Consum mitjà setmanal"},
-      "operation_day": {"name": "Interval de regeneració"},
-      "remaining_day": {"name": "Dies fins a la regeneració"},
-      "periodic_water": {"name": "Capacitat per cicle"},
-      "backwash_time": {"name": "Durada de contrarentat"},
-      "backwash_remaining": {"name": "Temps restant contrarentat"},
-      "slow_wash_time": {"name": "Durada aspiració"},
-      "slow_wash_remaining": {"name": "Temps restant aspiració"},
-      "refill_time": {"name": "Durada ompliment"},
-      "refill_remaining": {"name": "Temps restant ompliment"},
-      "wash_time": {"name": "Durada rentat ràpid"},
-      "wash_remaining": {"name": "Temps restant rentat ràpid"},
-      "resin_volume": {"name": "Volum de resina"},
-      "filter_work_days": {"name": "Interval de manteniment del material filtrant"},
-      "device_model": {"name": "Model"},
-      "station": {
-        "name": "Estat de funcionament",
-        "state": {
-          "in_service": "En servei",
-          "backwash": "Contrarentat",
-          "brine_draw": "Aspiració i rentat lent",
-          "brine_refill": "Ompliment de salmorra",
-          "fast_rinse": "Rentat ràpid",
-          "closed": "Posició tancada",
-          "salt_dissolving": "Dissolució de sal",
-          "pause_1": "Pausa 1",
-          "pause_2": "Pausa 2"
-        }
-      },
-      "volume_unit": {
-        "name": "Unitat de volum",
-        "state": {"gallons": "Galons", "liters": "Litres", "cubic_meters": "Metres cúbics"}
-      },
-      "polling_mode": {
-        "name": "Mode de sondeig",
-        "state": {"idle": "Repòs", "active": "Actiu"}
-      },
-      "last_sync": {"name": "Última sincronització local"},
-      "poll_duration": {"name": "Durada de l'última consulta"},
-      "scan_interval": {"name": "Interval de consulta"},
-      "transient_retries": {"name": "Reintents transitoris"},
-      "reauth_count": {"name": "Reautenticacions"},
-      "consecutive_failures": {"name": "Errors consecutius"},
-      "failed_polls": {"name": "Consultes fallides"},
-      "clock_drift": {"name": "Desviació del rellotge"},
-      "clock_syncs": {"name": "Sincronitzacions del rellotge"},
-      "wash_initiation_time": {"name": "Hora d'inici de rentat"},
-      "active_alerts": {"name": "Avisos actius"},
-      "regeneration_pattern": {
-        "name": "Mode de regeneració",
-        "state": {"flow": "Volum / cabal", "time": "Temps / dies"}
-      },
-      "maximum_regeneration_interval": {"name": "Interval màxim de regeneració"}
-    },
-    "binary_sensor": {
-      "valve_closed_alarm": {"name": "Vàlvula tancada per seguretat"},
-      "clock_fault": {"name": "Error del rellotge"},
-      "multiple_position_fault": {"name": "Senyals de posició múltiples"},
-      "no_position_fault": {"name": "Sense senyal de posició"},
-      "memory_fault": {"name": "Error de memòria"},
-      "salt_shortage_alarm": {"name": "Alarma de falta de sal"},
-      "resin_replacement": {"name": "Recordatori de substitució de resina"},
-      "salt_shortage_reminder": {"name": "Recordatori de falta de sal"},
-      "filter_reminder": {"name": "Recordatori del material filtrant"},
-      "communication_problem": {"name": "Problema de comunicació local"}
-    },
-    "number": {
-      "salt_addition": {"name": "Sal afegida"},
-      "raw_water_hardness": {"name": "Duresa de l'aigua d'entrada"},
-      "continuous_water_time": {"name": "Límit flux d'aigua continu"},
-      "flow_rate_off": {"name": "Tancament per cabal màxim"}
-    },
-    "time": {
-      "regenerating_trigger_time": {"name": "Hora de regeneració"},
-      "device_clock": {"name": "Hora del dispositiu"}
-    },
-    "switch": {"vacation_mode": {"name": "Mode vacances"}},
-    "button": {
-      "force_regeneration": {"name": "Forçar regeneració"},
-      "sync_clock": {"name": "Sincronitza el rellotge"}
-    }
-  },
-  "services": {
-    "write_fields": {
-      "name": "Escriu camps",
-      "description": "Escriu un o més camps del protocol F79D en una sola trama 0x19. Només s'accepten els camps permesos per la política conservadora d'escriptura de la integració.",
-      "fields": {
-        "config_entry_id": {"name": "Dispositiu", "description": "Entrada de configuració."},
-        "fields": {"name": "Camps", "description": "Diccionari id_camp: valor. Per a camps d'hora, [hora, minut]."}
-      }
-    },
-    "advance_phase": {
-      "name": "Avança la fase",
-      "description": "Escriu el mode del sistema per moure la màquina d'estats de regeneració (0-4). Operació mecànica: utilitza-ho amb cura.",
-      "fields": {
-        "config_entry_id": {"name": "Dispositiu", "description": "Entrada de configuració."},
-        "phase": {"name": "Fase", "description": "0 servei, 1-4 etapes de regeneració."}
-      }
-    }
-  },
-  "exceptions": {
-    "write_failed": {"message": "No s'ha pogut escriure {name} al descalcificador: {error}"},
-    "below_minimum": {"message": "{value} és per sota del mínim permès ({minimum})."},
-    "above_maximum": {"message": "{value} supera el màxim permès ({maximum})."},
-    "unsupported_flow_unit": {"message": "El control de tancament per cabal només està habilitat per al mode verificat en metres cúbics."},
-    "service_entry_not_found": {"message": "No existeix cap entrada de configuració de Ypsilon amb id {entry_id}."},
-    "service_entry_not_loaded": {"message": "L'entrada de configuració de Ypsilon seleccionada no està carregada."},
-    "service_fields_not_writable": {"message": "Aquests camps no estan permesos per la política segura d'escriptura: {fields}."},
-    "service_write_failed": {"message": "No s'ha pogut confirmar l'escriptura F79D: {error}"},
-    "service_phase_failed": {"message": "No s'ha pogut confirmar el canvi de fase de regeneració: {error}"}
-  }
+  "config": {"step": {"user": {"title": "Connecta el descalcificador", "description": "Introdueix l'adreça IP local del BL3372.", "data": {"host": "Adreça IP"}}, "discovery_confirm": {"title": "Ypsilon detectat", "description": "S'ha detectat un dispositiu a la xarxa ({host}). Vols configurar-lo?"}, "reconfigure": {"title": "Canvia l'adreça IP", "data": {"host": "Amfitrió"}}}, "error": {"cannot_connect": "No s'ha pogut connectar amb el dispositiu.", "unsupported_device": "Model no suportat."}, "abort": {"already_configured": "Aquest dispositiu ja està configurat.", "wrong_device": "Aquesta IP correspon a un altre dispositiu.", "reconfigure_successful": "Adreça actualitzada.", "unsupported_device": "Aquest dispositiu no és un Ypsilon G6 (model 9).", "cannot_connect": "No s'ha pogut connectar amb el dispositiu."}},
+  "options": {"step": {"init": {"title": "Opcions de Ypsilon", "data": {"scan_interval": "Interval de consulta (s)", "adaptive_polling": "Sondeig adaptatiu", "active_scan_interval": "Interval quan hi ha activitat (s)", "auto_sync_clock": "Sincronitza el rellotge automàticament", "clock_tolerance_minutes": "Tolerància del rellotge (min)"}, "data_description": {"adaptive_polling": "Consulta més sovint mentre passa aigua o hi ha una regeneració en curs.", "active_scan_interval": "Només s'aplica amb el sondeig adaptatiu actiu.", "auto_sync_clock": "Corregeix l'hora de la vàlvula quan es desvia. Cobreix també el canvi d'hora estacional, que el descalcificador no aplica per si mateix.", "clock_tolerance_minutes": "Desviació màxima que es tolera abans de corregir."}}}},
+  "entity": {"sensor": {
+    "flow_rate": {"name": "Cabal"}, "daily_water": {"name": "Consum diari"}, "residual_water": {"name": "Capacitat de tractament restant"}, "weekly_average": {"name": "Consum mitjà setmanal"},
+    "operation_day": {"name": "Interval de regeneració (mode temps)"}, "remaining_day": {"name": "Dies restants (mode temps)"}, "periodic_water": {"name": "Capacitat per cicle"},
+    "regeneration_pattern": {"name": "Mode de regeneració", "state": {"flow": "Per volum / comptador", "time": "Per temps / dies"}},
+    "work_pattern": {"name": "Patró de treball", "state": {"downflow_meter_delayed": "Flux descendent · comptador retardat", "downflow_meter_immediate": "Flux descendent · comptador immediat", "downflow_intelligent_meter_delayed": "Flux descendent · comptador intel·ligent retardat", "upflow_meter_delayed": "Flux ascendent · comptador retardat", "upflow_meter_immediate": "Flux ascendent · comptador immediat", "upflow_intelligent_meter_delayed": "Flux ascendent · comptador intel·ligent retardat", "filter_type": "Tipus filtre", "meter_delayed": "Comptador retardat", "meter_immediate": "Comptador immediat", "intelligent_meter_delayed": "Comptador intel·ligent retardat"}},
+    "maximum_regeneration_interval": {"name": "Interval màxim de regeneració"}, "backwash_time": {"name": "Durada de contrarentat"}, "backwash_remaining": {"name": "Temps restant contrarentat"}, "slow_wash_time": {"name": "Durada aspiració"}, "slow_wash_remaining": {"name": "Temps restant aspiració"}, "refill_time": {"name": "Durada ompliment"}, "refill_remaining": {"name": "Temps restant ompliment"}, "wash_time": {"name": "Durada rentat ràpid"}, "wash_remaining": {"name": "Temps restant rentat ràpid"}, "resin_volume": {"name": "Volum de resina"}, "filter_work_days": {"name": "Interval de manteniment del material filtrant"}, "device_model": {"name": "Model"},
+    "station": {"name": "Estat de funcionament", "state": {"in_service": "En servei", "backwash": "Contrarentat", "brine_draw": "Aspiració i rentat lent", "brine_refill": "Ompliment de salmorra", "fast_rinse": "Rentat ràpid", "closed": "Posició tancada", "salt_dissolving": "Dissolució de sal", "pause_1": "Pausa 1", "pause_2": "Pausa 2"}},
+    "volume_unit": {"name": "Unitat de volum", "state": {"gallons": "Galons", "liters": "Litres", "cubic_meters": "Metres cúbics"}}, "polling_mode": {"name": "Mode de sondeig", "state": {"idle": "Repòs", "active": "Actiu"}},
+    "last_sync": {"name": "Última sincronització local"}, "poll_duration": {"name": "Durada de l'última consulta"}, "scan_interval": {"name": "Interval de consulta"}, "transient_retries": {"name": "Reintents transitoris"}, "reauth_count": {"name": "Reautenticacions"}, "consecutive_failures": {"name": "Errors consecutius"}, "failed_polls": {"name": "Consultes fallides"}, "clock_drift": {"name": "Desviació del rellotge"}, "clock_syncs": {"name": "Sincronitzacions del rellotge"}, "wash_initiation_time": {"name": "Hora d'inici de rentat"}, "active_alerts": {"name": "Avisos actius"}
+  }, "binary_sensor": {"valve_closed_alarm": {"name": "Vàlvula tancada per seguretat"}, "clock_fault": {"name": "Error del rellotge"}, "multiple_position_fault": {"name": "Senyals de posició múltiples"}, "no_position_fault": {"name": "Sense senyal de posició"}, "memory_fault": {"name": "Error de memòria"}, "salt_shortage_alarm": {"name": "Alarma de falta de sal"}, "resin_replacement": {"name": "Recordatori de substitució de resina"}, "salt_shortage_reminder": {"name": "Recordatori de falta de sal"}, "filter_reminder": {"name": "Recordatori del material filtrant"}, "communication_problem": {"name": "Problema de comunicació local"}},
+  "number": {"salt_addition": {"name": "Sal afegida"}, "raw_water_hardness": {"name": "Duresa de l'aigua d'entrada"}, "continuous_water_time": {"name": "Límit flux d'aigua continu"}, "flow_rate_off": {"name": "Tancament per cabal màxim"}}, "time": {"regenerating_trigger_time": {"name": "Hora de regeneració"}, "device_clock": {"name": "Hora del dispositiu"}}, "switch": {"vacation_mode": {"name": "Mode vacances"}}, "button": {"force_regeneration": {"name": "Forçar regeneració"}, "sync_clock": {"name": "Sincronitza el rellotge"}}},
+  "services": {"write_fields": {"name": "Escriu camps", "description": "Escriu un o més camps del protocol F79D en una sola trama 0x19. Només s'accepten els camps permesos per la política conservadora d'escriptura de la integració.", "fields": {"config_entry_id": {"name": "Dispositiu", "description": "Entrada de configuració."}, "fields": {"name": "Camps", "description": "Diccionari id_camp: valor. Per a camps d'hora, [hora, minut]."}}}, "advance_phase": {"name": "Avança la fase", "description": "Escriu el mode del sistema per moure la màquina d'estats de regeneració (0-4). Operació mecànica: utilitza-ho amb cura.", "fields": {"config_entry_id": {"name": "Dispositiu", "description": "Entrada de configuració."}, "phase": {"name": "Fase", "description": "0 servei, 1-4 etapes de regeneració."}}}},
+  "exceptions": {"write_failed": {"message": "No s'ha pogut escriure {name} al descalcificador: {error}"}, "below_minimum": {"message": "{value} és per sota del mínim permès ({minimum})."}, "above_maximum": {"message": "{value} supera el màxim permès ({maximum})."}, "unsupported_flow_unit": {"message": "El control de tancament per cabal només està habilitat per al mode verificat en metres cúbics."}, "service_entry_not_found": {"message": "No existeix cap entrada de configuració de Ypsilon amb id {entry_id}."}, "service_entry_not_loaded": {"message": "L'entrada de configuració de Ypsilon seleccionada no està carregada."}, "service_fields_not_writable": {"message": "Aquests camps no estan permesos per la política segura d'escriptura: {fields}."}, "service_write_failed": {"message": "No s'ha pogut confirmar l'escriptura F79D: {error}"}, "service_phase_failed": {"message": "No s'ha pogut confirmar el canvi de fase de regeneració: {error}"}}
 }
