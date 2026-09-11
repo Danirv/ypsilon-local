@@ -8,7 +8,34 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from .runxin.semantics import (
+    REGENERATION_PATTERN_KEYS,
+    VOLUME_UNIT_KEYS,
+    WORK_PATTERN_KEYS,
+)
+
 TO_REDACT = {"mac", "host", "unique_id"}
+
+
+def _semantic_protocol_summary(data: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return compact interpreted protocol metadata alongside the raw state."""
+    if not data:
+        return None
+
+    regeneration_code = data.get("regenerationPattern")
+    work_code = data.get("workPattern")
+    volume_unit_code = data.get("waterVolumeUnit")
+
+    return {
+        "profile": "F79D",
+        "device_model": data.get("deviceModel"),
+        "volume_unit_code": volume_unit_code,
+        "volume_unit": VOLUME_UNIT_KEYS.get(volume_unit_code),
+        "regeneration_pattern_code": regeneration_code,
+        "regeneration_pattern": REGENERATION_PATTERN_KEYS.get(regeneration_code),
+        "work_pattern_code": work_code,
+        "work_pattern": WORK_PATTERN_KEYS.get(work_code),
+    }
 
 
 async def async_get_config_entry_diagnostics(
@@ -31,6 +58,7 @@ async def async_get_config_entry_diagnostics(
             "transient_retries": client.transient_retries,
             "reauth_count": client.reauth_count,
         },
+        "protocol": _semantic_protocol_summary(coordinator.data),
         "state": async_redact_data(coordinator.data, TO_REDACT)
         if coordinator.data
         else None,
