@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here.
 
+## [2.6.1] - 2026-09-12
+
+### Fixed
+- Withdraw the v2.6.0 writable Vacation mode switch after real Ypsilon G6 testing showed that a direct local field-49 write can be transport-ACKed while fresh read-back remains `vacationPattern=false`.
+- Keep vacation information read-only and preserve the derived `off` / `preparing` / `active` status without guessing an unverified mechanical sequence.
+- Replace the incorrectly reused square branding image with a properly padded 256×256 icon, exact 2× icon, landscape logo and exact 2× logo, plus matching dark variants.
+- Clarify controller water statistics so field 39 is not presented as the vendor application's current-week/history total and field 41 is not treated as a cumulative meter.
+
+### Changed
+- Rename field 39 to **Controller weekly average consumption** / equivalent CA/ES wording while keeping it without a Home Assistant `state_class`.
+- Rename field 41 to **Treatment capacity per cycle** / equivalent CA/ES wording; it remains without a `state_class`.
+- Clarify field 43 as **Added salt amount**: a 0–100 kg controller bookkeeping/configuration value, not a physical remaining-salt level and not automatically decremented after regeneration.
+- Preserve `dailyWaterConsumption` as `TOTAL_INCREASING`; real controller history confirms a within-day cumulative counter that resets at the day boundary.
+- Clean the obsolete v2.6.0 vacation switch from the entity registry on reload/upgrade.
+- Strengthen publication policy: a field being writable in the recovered legacy codec is no longer sufficient to expose a Home Assistant control without current-hardware physical read-back evidence.
+
+### Added
+- Comprehensive WaterDevice/F79D evidence audit in English, Catalan and Spanish.
+- Regression tests for daily-counter resets, weekly/cycle quantity semantics, salt semantics, read-only vacation policy and brand image geometry.
+- Offline audit checks for withdrawn vacation control, stale translation keys, proper icon/logo dimensions and distinct square/landscape artwork.
+
+### Migration notes
+- Home Assistant may offer to delete obsolete long-term statistics previously created for **Weekly average consumption** and **Periodic capacity**. This is expected after correcting their `state_class`; deleting those obsolete statistics does not remove the entities or normal recorder history.
+- The v2.6.0 Vacation mode switch is intentionally removed. Vacation status remains available as a read-only sensor until a local current-firmware control sequence is physically verified.
+
 ## [2.6.0] - 2026-09-11
 
 ### Added

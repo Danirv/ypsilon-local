@@ -24,7 +24,6 @@ PLATFORMS: list[Platform] = [
     Platform.BUTTON,
     Platform.NUMBER,
     Platform.SENSOR,
-    Platform.SWITCH,
     Platform.TIME,
 ]
 
@@ -142,11 +141,16 @@ def _migrate_registry_identity(
 def _cleanup_legacy_entity_registry_entries(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> None:
-    """Remove orphaned entities left by earlier platform moves."""
+    """Remove orphaned entities left by earlier platform moves or withdrawn controls."""
     registry = er.async_get(hass)
     legacy_suffixes: dict[str, tuple[str, ...]] = {
         "sensor": ("device_time", "device_clock", "current_time"),
         "time": ("wash_initiation_time", "wash_start_time", "wash_start"),
+        # v2.6.0 briefly exposed vacationPattern as a writable switch. Real
+        # hardware read-back showed that the local field-49 write is not a
+        # verified action on the tested controller, so v2.6.1 removes the
+        # control and cleans its registry entry while preserving read-only state.
+        "switch": ("vacation_mode",),
     }
 
     for registry_entry in er.async_entries_for_config_entry(

@@ -14,7 +14,7 @@
       "init": {
         "title": "Ypsilon Options",
         "data": {"scan_interval": "Polling interval (s)", "adaptive_polling": "Adaptive polling", "active_scan_interval": "Interval while active (s)", "auto_sync_clock": "Sync clock automatically", "clock_tolerance_minutes": "Clock tolerance (min)"},
-        "data_description": {"adaptive_polling": "Poll more often while water is flowing or the valve is in a moving regeneration/vacation transition.", "active_scan_interval": "Only used when adaptive polling is enabled.", "auto_sync_clock": "Corrects the valve clock when it drifts, including the seasonal daylight saving change, which the softener does not apply itself.", "clock_tolerance_minutes": "Maximum drift tolerated before correcting."}
+        "data_description": {"adaptive_polling": "Poll more often while water is flowing or the valve is in a regeneration or vacation transition detected from read-back state.", "active_scan_interval": "Only used when adaptive polling is enabled.", "auto_sync_clock": "Corrects the valve clock when it drifts, including the seasonal daylight saving change, which the softener does not apply itself.", "clock_tolerance_minutes": "Maximum drift tolerated before correcting."}
       }
     }
   },
@@ -23,10 +23,10 @@
       "flow_rate": {"name": "Flow rate"},
       "daily_water": {"name": "Daily consumption"},
       "residual_water": {"name": "Remaining treatment capacity"},
-      "weekly_average": {"name": "Weekly average consumption"},
+      "weekly_average": {"name": "Controller weekly average consumption"},
       "operation_day": {"name": "Regeneration interval (time mode)"},
       "remaining_day": {"name": "Days remaining (time mode)"},
-      "periodic_water": {"name": "Periodic capacity"},
+      "periodic_water": {"name": "Treatment capacity per cycle"},
       "backwash_time": {"name": "Backwash duration"},
       "backwash_remaining": {"name": "Backwash time remaining"},
       "slow_wash_time": {"name": "Slow wash duration"},
@@ -72,17 +72,16 @@
       "communication_problem": {"name": "Local communication problem"}
     },
     "number": {
-      "salt_addition": {"name": "Salt added"},
+      "salt_addition": {"name": "Added salt amount"},
       "raw_water_hardness": {"name": "Raw water hardness"},
       "continuous_water_time": {"name": "Continuous water limit"},
       "flow_rate_off": {"name": "Flow rate cutoff limit"}
     },
     "time": {"regenerating_trigger_time": {"name": "Regeneration time"}, "device_clock": {"name": "Device time"}},
-    "switch": {"vacation_mode": {"name": "Vacation mode"}},
     "button": {"force_regeneration": {"name": "Force regeneration"}, "sync_clock": {"name": "Sync clock"}}
   },
   "services": {
-    "write_fields": {"name": "Write fields", "description": "Write reversible F79D configuration fields in a single 0x19 frame. Mechanical/state-machine fields must use their purpose-specific controls.", "fields": {"config_entry_id": {"name": "Device", "description": "Config entry."}, "fields": {"name": "Fields", "description": "Mapping of field id to raw value. For time fields use [hour, minute]. Field 7 is raw hundredths."}}},
+    "write_fields": {"name": "Write fields", "description": "Write reversible F79D configuration fields in a single 0x19 frame. Mechanical/state-machine fields are exposed only when their local action has been verified.", "fields": {"config_entry_id": {"name": "Device", "description": "Config entry."}, "fields": {"name": "Fields", "description": "Mapping of field id to raw value. For time fields use [hour, minute]. Field 7 is raw hundredths."}}},
     "advance_phase": {"name": "Advance phase", "description": "Writes system mode to move the regeneration state machine (0-4). Mechanical operation: use with care.", "fields": {"config_entry_id": {"name": "Device", "description": "Config entry."}, "phase": {"name": "Phase", "description": "0 service, 1-4 regeneration stages."}}}
   },
   "exceptions": {
@@ -96,8 +95,6 @@
     "service_field_invalid_value": {"message": "Field {field} has an invalid value: {value}."},
     "service_field_out_of_range": {"message": "Field {field} value {value} is outside the allowed range {minimum}–{maximum}."},
     "service_write_failed": {"message": "The F79D write could not be confirmed: {error}"},
-    "service_phase_failed": {"message": "The regeneration phase change could not be confirmed: {error}"},
-    "vacation_enable_invalid_state": {"message": "Vacation mode can only be enabled while the valve is in service (current station: {station})."},
-    "vacation_disable_invalid_state": {"message": "Vacation mode can only be exited after the valve reaches its stable vacation state (station 8; current station: {station})."}
+    "service_phase_failed": {"message": "The regeneration phase change could not be confirmed: {error}"}
   }
 }

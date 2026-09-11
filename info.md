@@ -1,25 +1,26 @@
-# Ypsilon 2.6.0
+# Ypsilon 2.6.1
 
 Local Home Assistant integration for compatible Runxin F79D / BroadLink BL3372 water softeners, tested with ATH/BWT Ypsilon G6.
 
-## 2.6.0
+## 2.6.1
 
-This release aligns the local protocol implementation more closely with the legacy WaterDevice codec and improves vacation-state handling, safety policy, diagnostics and branding.
+This corrective release tightens the project's evidence policy after validating v2.6.0 against real hardware and the legacy WaterDevice application.
 
 Highlights:
 
-- corrects field 7 (`flowRateOff`) to little-endian while retaining field 11 (`flowRate`) as big-endian;
-- makes volume-pair decoding depend on `waterVolumeUnit`;
-- corrects unit-code-1 flow display to L/min;
-- adds a separate Vacation status enum (`off`, `preparing`, `active`) without hiding the raw valve phase;
-- applies the legacy application's vacation entry/exit state-machine guards;
-- prevents stable vacation mode from forcing permanent fast polling;
-- adds diagnostic countdowns for fields 50 and 51;
-- interprets known field-12 system-close reason codes while preserving the raw value;
-- narrows and validates the generic administrator raw-write surface;
-- changes field 31's visible meaning to low brine concentration;
-- withdraws field 7's previous hardware-write evidence until the corrected LE path is physically revalidated;
-- refreshes English, Catalan and Spanish translations and protocol documentation;
-- ships refreshed matching Home Assistant icon/logo brand assets.
+- removes the writable Vacation mode switch after a real Ypsilon G6 ACKed the local field-49 write but fresh read-back remained unchanged;
+- keeps Vacation status available as a read-only semantic sensor and retains field-49 codec support for interoperability research without claiming hardware write support;
+- preserves `dailyWaterConsumption` as a resettable `TOTAL_INCREASING` controller counter, backed by observed within-day growth and day-boundary resets;
+- clarifies field 39 as the controller's weekly-average value, not the vendor application's historical/current-week bar total;
+- clarifies field 41 as treatment capacity per cycle rather than a cumulative consumption meter;
+- clarifies field 43 as the amount of salt added/bookkept by the controller, not a measured salt level and not something the integration decrements after regeneration;
+- documents the legacy WaterDevice/F79D evidence in English, Catalan and Spanish;
+- adds regressions for water-counter resets, statistics semantics, salt semantics and the read-only vacation policy;
+- replaces the v2.6.0 reused square branding asset with properly proportioned square icon and landscape logo families, including exact 2x and dark variants;
+- expands the offline audit to validate brand geometry and prevent withdrawn vacation controls/translations from returning.
 
-The transport-neutral `runxin/` layer remains independent from Home Assistant and BroadLink. The Home Assistant integration itself continues to support only the verified F79D model 9 + BroadLink BL3372 (`0x520F`) combination until additional hardware is tested.
+### Home Assistant statistics migration
+
+Older versions briefly generated long-term statistics for weekly-average and cycle-capacity entities. Home Assistant may offer to delete those obsolete statistics now that their corrected entities intentionally have no `state_class`. This does not delete the entities or ordinary recorder history.
+
+The transport-neutral `runxin/` layer remains independent from Home Assistant and BroadLink. The Home Assistant integration continues to support only the verified F79D model 9 + BroadLink BL3372 (`0x520F`) combination until additional hardware is tested.

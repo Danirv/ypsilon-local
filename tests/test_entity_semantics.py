@@ -9,18 +9,10 @@ from __future__ import annotations
 from pathlib import Path
 import re
 
-SENSOR = (
-    Path(__file__).resolve().parents[1]
-    / "custom_components"
-    / "ypsilon_local"
-    / "sensor.py"
-).read_text()
-SWITCH = (
-    Path(__file__).resolve().parents[1]
-    / "custom_components"
-    / "ypsilon_local"
-    / "switch.py"
-).read_text()
+ROOT = Path(__file__).resolve().parents[1]
+INTEGRATION = ROOT / "custom_components" / "ypsilon_local"
+SENSOR = (INTEGRATION / "sensor.py").read_text()
+INIT = (INTEGRATION / "__init__.py").read_text()
 
 
 def _block(key: str) -> str:
@@ -38,6 +30,9 @@ def test_water_state_classes_match_home_assistant_semantics() -> None:
     assert "SensorStateClass.MEASUREMENT" in _block("flow_rate")
     assert "SensorStateClass.TOTAL_INCREASING" in _block("daily_water")
     assert "SensorStateClass.MEASUREMENT" in _block("residual_water")
+    # These are controller aggregates/configured quantities, not current
+    # measurements or monotonic meters. Older releases incorrectly generated
+    # long-term statistics for them.
     assert "state_class=" not in _block("weekly_average")
     assert "state_class=" not in _block("periodic_water")
 
@@ -49,12 +44,13 @@ def test_work_pattern_is_read_only_enum_sensor() -> None:
     assert 'field="workPattern"' in block
 
 
-def test_vacation_status_is_primary_enum_and_switch_is_not_config_entity() -> None:
+def test_vacation_status_is_read_only_primary_enum() -> None:
     block = _block("vacation_status")
     assert "SensorDeviceClass.ENUM" in block
     assert "VACATION_STATUS_KEYS" in block
     assert "EntityCategory" not in block
-    assert "_attr_entity_category" not in SWITCH
+    assert "Platform.SWITCH" not in INIT
+    assert not (INTEGRATION / "switch.py").exists()
 
 
 def test_phase_50_and_51_sensors_are_diagnostics_in_minutes() -> None:
