@@ -7,7 +7,7 @@ write_fields:
           integration: ypsilon_local
     fields:
       required: true
-      example: '{43: 50, 49: 1}'
+      example: '{43: 50, 47: 400}'
       selector:
         object:
 

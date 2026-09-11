@@ -20,57 +20,31 @@ DEVICE_MODEL = 9
 STATE_FIELDS = list(range(1, 52))
 
 FIELD_NAMES = {spec.id: spec.name for spec in F79D_FIELD_SPECS}
-CLOCK_FIELDS = {
-    spec.id for spec in F79D_FIELD_SPECS if spec.read_codec is FieldCodec.TIME_HM
-}
-DURATION_FIELDS = {
-    spec.id for spec in F79D_FIELD_SPECS if spec.read_codec is FieldCodec.DURATION_MIN_SEC
-}
-LE16_FIELDS = {
-    spec.id for spec in F79D_FIELD_SPECS if spec.read_codec is FieldCodec.U16_LE
-}
-BE16_FIELDS = {
-    spec.id for spec in F79D_FIELD_SPECS if spec.read_codec is FieldCodec.U16_BE
-}
+CLOCK_FIELDS = {spec.id for spec in F79D_FIELD_SPECS if spec.read_codec is FieldCodec.TIME_HM}
+DURATION_FIELDS = {spec.id for spec in F79D_FIELD_SPECS if spec.read_codec is FieldCodec.DURATION_MIN_SEC}
+LE16_FIELDS = {spec.id for spec in F79D_FIELD_SPECS if spec.read_codec is FieldCodec.U16_LE}
+BE16_FIELDS = {spec.id for spec in F79D_FIELD_SPECS if spec.read_codec is FieldCodec.U16_BE}
 HUNDREDTHS_FIELDS = {7, 11}
-BOOL_FIELDS = {
-    spec.id for spec in F79D_FIELD_SPECS if spec.read_codec is FieldCodec.BOOL
-}
+BOOL_FIELDS = {spec.id for spec in F79D_FIELD_SPECS if spec.read_codec is FieldCodec.BOOL}
 VOLUME_FIELDS = {
-    spec.id: spec.name
-    for spec in F79D_FIELD_SPECS
-    if spec.read_codec is FieldCodec.VOLUME_PAIR
+    spec.id: spec.name for spec in F79D_FIELD_SPECS if spec.read_codec is FieldCodec.VOLUME_PAIR
 }
 
-WRITE_SIMPLE = {
-    spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.U8
-}
-WRITE_U16 = {
-    spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.U16_LE
-}
-WRITE_U16_BE = {
-    spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.U16_BE
-}
-WRITE_CLOCK = {
-    spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.TIME_HM
-}
+WRITE_SIMPLE = {spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.U8}
+WRITE_U16 = {spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.U16_LE}
+WRITE_U16_BE = {spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.U16_BE}
+WRITE_CLOCK = {spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.TIME_HM}
 WRITE_DURATION = {
-    spec.id
-    for spec in F79D_FIELD_SPECS
-    if spec.write_codec is FieldCodec.DURATION_MIN_SEC
+    spec.id for spec in F79D_FIELD_SPECS if spec.write_codec is FieldCodec.DURATION_MIN_SEC
 }
-# Compatibility symbol retained for pre-2.4 research scripts. Historically this
-# set mixed clock-time and duration tuple fields under one name.
 WRITE_TIME = WRITE_CLOCK | WRITE_DURATION
 
 
 def build_query(fields: list[int]) -> bytes:
-    """Build an F79D 0x09 field query."""
     return build_query_frame(fields)
 
 
 def build_write(field: int, low: int, high: int = 0) -> bytes:
-    """Build one raw three-byte F79D control group."""
     if not 0 <= field <= 0xFF or not 0 <= low <= 0xFF or not 0 <= high <= 0xFF:
         raise ValueError("values must fit in one byte")
     return build_control_frame([field, low, high])
@@ -85,12 +59,8 @@ def _pair(value: Any, field: int, label: str) -> tuple[int, int]:
 
 
 def encode_field(field: int, value: Any) -> list[int]:
-    """Serialise one field into the legacy three-byte payload group."""
     spec = F79D_FIELDS_BY_ID.get(field)
     codec = spec.write_codec if spec is not None else None
-
-    # Compatibility fallback used by research tooling. Home Assistant applies
-    # a separate safe-write whitelist before calling the codec.
     if codec is None:
         codec = FieldCodec.U8
 
@@ -103,9 +73,7 @@ def encode_field(field: int, value: Any) -> list[int]:
     if codec is FieldCodec.DURATION_MIN_SEC:
         minute, second = _pair(value, field, "minute, second")
         if not 0 <= minute <= 0xFF or not 0 <= second <= 59:
-            raise ValueError(
-                f"invalid duration {minute}m {second}s for field {field}"
-            )
+            raise ValueError(f"invalid duration {minute}m {second}s for field {field}")
         return [field, minute, second]
 
     number = int(value)
@@ -121,17 +89,14 @@ def encode_field(field: int, value: Any) -> list[int]:
         if not 0 <= number <= 0xFF:
             raise ValueError(f"value {number} out of byte range for field {field}")
         return [field, number, 0]
-
     raise ValueError(f"field {field} has unsupported write codec {codec.value}")
 
 
 def build_control(payload: list[int]) -> bytes:
-    """Wrap serialised F79D field groups in a 0x19 control frame."""
     return build_control_frame(payload)
 
 
 def build_write_fields(values: dict[int, Any]) -> bytes:
-    """Build one 0x19 frame writing one or more fields."""
     payload: list[int] = []
     for field in sorted(values):
         payload += encode_field(field, values[field])
@@ -139,23 +104,36 @@ def build_write_fields(values: dict[int, Any]) -> bytes:
 
 
 def _clock(low: int, high: int) -> str | None:
-    """Format a time-of-day field, rejecting impossible controller values."""
     if not (0 <= low <= 23 and 0 <= high <= 59):
         return None
     return f"{low:02d}:{high:02d}:00"
 
 
 def _duration(low: int, high: int) -> str:
-    """Decode the legacy minutes/seconds duration pair as HH:MM:SS."""
     total = low * 60 + high
     hours, remainder = divmod(total, 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
+def _decode_volume_pair(
+    tlvs: dict[int, tuple[int, int]], field: int, unit_code: int | None
+) -> int | float | None:
+    """Mirror the legacy WaterDevice unit-dependent three-byte volume codec."""
+    if field + 1 not in tlvs or unit_code not in (0, 1, 2):
+        return None
+    _base_low, base_high = tlvs[field]
+    next_low, next_high = tlvs[field + 1]
+    # Legacy app builds [base_high, next_low, next_high], reverses it, then:
+    # unit 0/1 -> generic LE integer; unit 2 -> base-100 decimal packing.
+    if unit_code in (0, 1):
+        return next_high | (next_low << 8) | (base_high << 16)
+    return (next_high + next_low * 100 + base_high * 10_000) / 100
+
+
 def decode_tlvs(tlvs: dict[int, tuple[int, int]]) -> dict[str, Any]:
-    """Decode F79D field groups into stable legacy field names."""
     decoded: dict[str, Any] = {}
+    unit_code = tlvs.get(8, (None, None))[0]
     for field, (low, high) in tlvs.items():
         spec = F79D_FIELDS_BY_ID.get(field)
         name = spec.name if spec is not None else f"field_{field}"
@@ -169,6 +147,8 @@ def decode_tlvs(tlvs: dict[int, tuple[int, int]]) -> dict[str, Any]:
             value = _duration(low, high)
         elif codec is FieldCodec.U16_LE:
             value = low | high << 8
+            if field in HUNDREDTHS_FIELDS:
+                decoded[f"_raw_{name}"] = value
         elif codec is FieldCodec.U16_BE:
             value = low << 8 | high
             if field in HUNDREDTHS_FIELDS:
@@ -176,12 +156,7 @@ def decode_tlvs(tlvs: dict[int, tuple[int, int]]) -> dict[str, Any]:
         elif codec is FieldCodec.BOOL:
             value = bool(low)
         elif codec is FieldCodec.VOLUME_PAIR:
-            if field + 1 not in tlvs:
-                decoded[name] = None
-                continue
-            next_low, next_high = tlvs[field + 1]
-            packed = next_high + next_low * 100 + high * 10_000
-            value = packed / 100
+            value = _decode_volume_pair(tlvs, field, unit_code)
         elif codec is FieldCodec.REMINDER_FLAGS:
             decoded["saltShortageReminder"] = bool(low)
             decoded["filterMaterialReminder"] = bool(high)
@@ -189,45 +164,20 @@ def decode_tlvs(tlvs: dict[int, tuple[int, int]]) -> dict[str, Any]:
         else:
             value = low
         decoded[name] = value
-
     return decoded
 
 
 def decode_frame(frame: bytes) -> dict[str, Any]:
-    """Validate and decode one raw Runxin/F79D response frame."""
     return decode_tlvs(extract_tlvs(frame))
 
 
 _inner_frame = inner_frame
 
 __all__ = [
-    "DEVICE_MODEL",
-    "STATE_FIELDS",
-    "FIELD_NAMES",
-    "CLOCK_FIELDS",
-    "DURATION_FIELDS",
-    "LE16_FIELDS",
-    "BE16_FIELDS",
-    "HUNDREDTHS_FIELDS",
-    "BOOL_FIELDS",
-    "VOLUME_FIELDS",
-    "WRITE_SIMPLE",
-    "WRITE_U16",
-    "WRITE_U16_BE",
-    "WRITE_CLOCK",
-    "WRITE_DURATION",
-    "WRITE_TIME",
-    "QUERY_CODE",
-    "WRITE_CODE",
-    "F79DProtocolError",
-    "build_query",
-    "build_write",
-    "encode_field",
-    "build_control",
-    "build_write_fields",
-    "validate_frame",
-    "extract_tlvs",
-    "decode_tlvs",
-    "decode_frame",
-    "_inner_frame",
+    "DEVICE_MODEL", "STATE_FIELDS", "FIELD_NAMES", "CLOCK_FIELDS", "DURATION_FIELDS",
+    "LE16_FIELDS", "BE16_FIELDS", "HUNDREDTHS_FIELDS", "BOOL_FIELDS", "VOLUME_FIELDS",
+    "WRITE_SIMPLE", "WRITE_U16", "WRITE_U16_BE", "WRITE_CLOCK", "WRITE_DURATION",
+    "WRITE_TIME", "QUERY_CODE", "WRITE_CODE", "F79DProtocolError", "build_query",
+    "build_write", "encode_field", "build_control", "build_write_fields", "validate_frame",
+    "extract_tlvs", "decode_tlvs", "decode_frame", "_inner_frame",
 ]

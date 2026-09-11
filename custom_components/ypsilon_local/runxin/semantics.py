@@ -1,15 +1,4 @@
-"""Stable semantic mappings for enum-like Runxin F79D fields.
-
-These mappings are deliberately read-only protocol knowledge. They translate
-raw controller codes into stable machine-readable states for consumers such as
-Home Assistant and diagnostics; they do not make the corresponding fields safe
-to write.
-
-The work-pattern labels were recovered directly from the legacy WaterDevice
-application. Codes 0..6 also align with Runxin's published down-flow,
-up-flow and filter mode families. We intentionally keep neutral state keys
-instead of embedding vendor menu numbers in the protocol contract.
-"""
+"""Stable semantic mappings for enum-like Runxin F79D fields."""
 
 from __future__ import annotations
 
@@ -48,3 +37,21 @@ WORK_PATTERN_KEYS: dict[int, str] = {
     8: "meter_immediate",
     9: "intelligent_meter_delayed",
 }
+
+SYSTEM_CLOSE_REASON_KEYS: dict[int, str] = {
+    257: "manual_close",
+    513: "leak_detected",
+    769: "continuous_flow_timeout",
+    1025: "flow_rate_exceeded",
+}
+
+VACATION_STATUS_KEYS = ("off", "preparing", "active")
+
+
+def vacation_status(vacation_enabled: bool | None, station: int | None) -> str | None:
+    """Return the semantic vacation state without hiding the raw valve phase."""
+    if vacation_enabled is None:
+        return None
+    if not vacation_enabled:
+        return "off"
+    return "active" if station == 8 else "preparing"

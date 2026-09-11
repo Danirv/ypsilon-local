@@ -27,4 +27,20 @@ def test_regeneration_pattern_stable_states_are_backwards_compatible() -> None:
 
 
 def test_known_volume_unit_mapping_is_stable() -> None:
-    assert semantics.VOLUME_UNIT_KEYS[2] == "cubic_meters"
+    assert semantics.VOLUME_UNIT_KEYS == {0: "gallons", 1: "liters", 2: "cubic_meters"}
+
+
+def test_system_close_reason_mapping_matches_legacy_ui() -> None:
+    assert semantics.SYSTEM_CLOSE_REASON_KEYS == {
+        257: "manual_close",
+        513: "leak_detected",
+        769: "continuous_flow_timeout",
+        1025: "flow_rate_exceeded",
+    }
+
+
+def test_vacation_semantics_preserve_raw_station_context() -> None:
+    assert semantics.vacation_status(False, 0) == "off"
+    assert semantics.vacation_status(True, 3) == "preparing"
+    assert semantics.vacation_status(True, 8) == "active"
+    assert semantics.vacation_status(None, 8) is None

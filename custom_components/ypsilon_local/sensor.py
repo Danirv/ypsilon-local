@@ -22,6 +22,7 @@ from .entity import YpsilonEntity
 from .runxin.semantics import (
     REGENERATION_PATTERN_KEYS,
     STATION_KEYS,
+    VACATION_STATUS_KEYS,
     VOLUME_UNIT_KEYS,
     WORK_PATTERN_KEYS,
 )
@@ -34,10 +35,11 @@ VOLUME_UNITS = {
     1: UnitOfVolume.LITERS,
     2: UnitOfVolume.CUBIC_METERS,
 }
+# Legacy WaterDevice labels the three flow units as gpm, Lpm and m³/h.
 # Only unit code 2 has been calibrated end-to-end on the project's hardware.
 FLOW_UNITS = {
     0: UnitOfVolumeFlowRate.GALLONS_PER_MINUTE,
-    1: UnitOfVolumeFlowRate.LITERS_PER_HOUR,
+    1: UnitOfVolumeFlowRate.LITERS_PER_MINUTE,
     2: UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
 }
 MODEL_NAMES = {9: "F79D / Ypsilon G6"}
@@ -70,9 +72,6 @@ SENSORS = (
         protocol_field="35–36", unit_kind="volume", state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2, icon="mdi:water",
     ),
-    # A weekly average is a historical aggregation, not a present-time
-    # measurement. Intentionally omit state_class so HA does not build
-    # misleading long-term measurement statistics for it.
     YpsilonSensorDescription(
         key="weekly_average", translation_key="weekly_average", field="averageWeeklyWaterConsumption",
         protocol_field="39–40", unit_kind="volume",
@@ -81,6 +80,11 @@ SENSORS = (
     YpsilonSensorDescription(
         key="station", translation_key="station", field="station", protocol_field="34",
         device_class=SensorDeviceClass.ENUM, options=list(STATION_KEYS.values()), icon="mdi:state-machine",
+    ),
+    YpsilonSensorDescription(
+        key="vacation_status", translation_key="vacation_status", field="_vacationStatus",
+        source=SOURCE_INTEGRATION, device_class=SensorDeviceClass.ENUM,
+        options=list(VACATION_STATUS_KEYS), icon="mdi:beach",
     ),
     YpsilonSensorDescription(
         key="operation_day", translation_key="operation_day", field="operationDay", protocol_field="44",
@@ -108,8 +112,6 @@ SENSORS = (
         native_unit_of_measurement=UnitOfTime.DAYS, entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:calendar-alert",
     ),
-    # This field is a controller-provided configured/cycle quantity, not a
-    # monotonically increasing consumption meter or a present-time measurement.
     YpsilonSensorDescription(
         key="periodic_water", translation_key="periodic_water", field="periodicWaterProduction",
         protocol_field="41–42", unit_kind="volume",
@@ -146,6 +148,18 @@ SENSORS = (
     ),
     YpsilonSensorDescription(
         key="wash_remaining", translation_key="wash_remaining", field="washCountdownTime", protocol_field="22",
+        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-sand",
+    ),
+    YpsilonSensorDescription(
+        key="salt_dissolution_remaining", translation_key="salt_dissolution_remaining",
+        field="saltDissolutionRemainingTime", protocol_field="50",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-sand",
+    ),
+    YpsilonSensorDescription(
+        key="pause_1_remaining", translation_key="pause_1_remaining",
+        field="pauseRemainingTime", protocol_field="51",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
         entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-sand",
     ),
     YpsilonSensorDescription(
@@ -297,9 +311,6 @@ class YpsilonSensor(YpsilonEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        # State attributes are intentionally data-only. Human descriptions live
-        # in translations/docs so they do not leak one language into another or
-        # bloat recorder history with static prose.
         attributes: dict[str, Any] = {"origin": self.entity_description.source}
         if self.entity_description.protocol_field is not None:
             attributes["f79d_protocol_field"] = self.entity_description.protocol_field

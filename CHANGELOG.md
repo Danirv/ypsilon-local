@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented here.
 
+## [2.6.0] - 2026-09-11
+
+### Added
+- Dedicated `Vacation status` enum with `off`, `preparing` and `active` states while preserving the raw valve `station` entity.
+- Diagnostic sensors for F79D fields 50 and 51: salt-dissolution time remaining and Pause 1 time remaining.
+- Stable semantic mapping for known `systemCloseReason` codes while retaining the raw numeric reason code.
+- Home Assistant brand icon/logo assets so current Home Assistant releases can load the integration artwork locally.
+- Regression coverage for unit-dependent volume decoding, vacation semantics, system-close reasons, diagnostic countdowns and Home Assistant flow units.
+
+### Fixed
+- Correct F79D field 7 (`flowRateOff`) to little-endian in both read and write paths, matching the legacy WaterDevice codec. Field 11 remains big-endian because WaterDevice explicitly reverses that field.
+- Decode F79D volume pairs 35/37/39/41 according to `waterVolumeUnit` instead of applying one universal formula.
+- Correct the legacy unit-code-1 instantaneous-flow unit from L/h to L/min.
+- Prevent stable vacation mode (`vacationPattern=1`, `station=8`) from keeping adaptive polling permanently in the fast interval.
+- Clarify field 31 as low brine concentration rather than a generic salt-shortage alarm.
+
+### Changed
+- Withdraw the previous `HARDWARE_WRITE_VERIFIED` evidence from field 7 until the corrected little-endian implementation is physically revalidated. Earlier versions could self-confirm the wrong byte order by using the same interpretation on SET and GET.
+- Apply the legacy application's vacation-mode state-machine guards: enter only from station 0 and exit only from stable station 8.
+- Make Vacation mode a primary operational entity rather than a configuration-category entity.
+- Restrict the generic administrator `write_fields` service to reversible configuration fields; mechanical/state-machine fields 34 and 49 must use purpose-specific controls.
+- Add range and unit validation to the advanced raw-write service.
+- Expand diagnostics with station, vacation state and interpreted system-close reason metadata.
+- Update English, Catalan and Spanish translations, protocol documentation, hardware-verification guidance, README and release information.
+- Replace version-specific README wording with an evergreen compatibility statement.
+
 ## [2.5.0] - 2026-09-11
 
 ### Added

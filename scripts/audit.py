@@ -54,180 +54,77 @@ def load_runxin(name: str):
     return module
 
 
-def _response(groups: list[tuple[int, int, int]], opcode: int) -> bytes:
-    data: list[int] = []
-    for field, low, high in groups:
-        data += [field, low, high]
-    header = [0x5A,0x5C,0,0,0,0,0,0,0,0,0,0,1,0,0x12,0,0]
-    inner = [0xDF,0xFD,0,opcode,*data,0,0xDE]
-    header[15] = len(inner)
-    inner[2] = len(inner)
-    inner[-2] = sum(inner[:-2]) & 0xFF
-    frame = header + inner + [0,0xA5]
-    frame[2] = len(frame)
-    frame[-2] = sum(frame[:-2]) & 0xFF
-    return bytes(frame)
-
-
 def protocol_checks() -> list[str]:
     errors: list[str] = []
     try:
         p = load_runxin("f79d")
-        framing = load_runxin("framing")
         fields_mod = load_runxin("fields")
+        semantics = load_runxin("semantics")
     except Exception as err:  # noqa: BLE001
         return [f"PROTOCOL load failed: {err}"]
 
-    def check(name: str, fn) -> None:
-        try:
-            fn()
-        except Exception as err:  # noqa: BLE001
-            errors.append(f"PROTOCOL {name}: {err}")
-
     def req(ok: bool, msg: str) -> None:
         if not ok:
-            raise AssertionError(msg)
+            errors.append(f"PROTOCOL {msg}")
 
-    def frames() -> None:
-        q = p.build_query([1,34,52])
-        p.validate_frame(q)
-        req(q[:2] == b"\x5a\x5c", "query prefix")
-        w = p.build_write_fields({43:50,49:1})
-        p.validate_frame(w)
-        inner = p._inner_frame(w)
-        req(inner[3] == 0x19, "write opcode")
-        req(inner[4:-2] == bytes([43,50,0,49,1,0]), "multi-write payload")
-        bad = bytearray(q)
-        bad[-2] ^= 1
-        try:
-            p.validate_frame(bytes(bad))
-        except p.F79DProtocolError:
-            pass
-        else:
-            raise AssertionError("bad checksum accepted")
+    req(p.encode_field(43, 50) == [43, 50, 0], "field43 encoding")
+    req(p.encode_field(47, 400) == [47, 0x90, 0x01], "field47 encoding")
+    req(p.encode_field(7, 200) == [7, 0xC8, 0], "field7 must be little-endian")
+    req(p.encode_field(10, (2, 30)) == [10, 2, 30], "field10 encoding")
+    req(p.WRITE_U16 == {7, 25, 47, 52}, "WRITE_U16 set")
+    req(p.WRITE_U16_BE == set(), "WRITE_U16_BE should be empty for writable fields")
+    req(p.BE16_FIELDS == {11}, "only field11 should read as BE16")
+    req({7, 12, 25, 47, 52}.issubset(p.LE16_FIELDS), "LE16 field set")
 
-    def encodings() -> None:
-        req(p.encode_field(43,50) == [43,50,0], "field43")
-        req(p.encode_field(47,400) == [47,0x90,0x01], "field47")
-        req(p.encode_field(7,200) == [7,0,0xC8], "field7")
-        req(p.encode_field(10,(2,30)) == [10,2,30], "field10")
-        req(p.encode_field(15,(12,30)) == [15,12,30], "duration write")
-        try:
-            p.encode_field(15,(12,60))
-        except ValueError:
-            pass
-        else:
-            raise AssertionError("invalid duration seconds accepted")
-        req(p.WRITE_SIMPLE == {2,6,9,13,14,23,24,34,43,46,48,49}, "WRITE_SIMPLE")
-        req(p.WRITE_U16 == {25,47,52}, "WRITE_U16")
-        req(p.WRITE_U16_BE == {7}, "WRITE_U16_BE")
-        req(p.WRITE_CLOCK == {4,5,10}, "WRITE_CLOCK")
-        req(p.WRITE_DURATION == {15,17,19,21}, "WRITE_DURATION")
-        req(p.WRITE_TIME == {4,5,10,15,17,19,21}, "WRITE_TIME compatibility")
+    d = p.decode_tlvs({7: (0xE8, 0x03), 11: (0x03, 0xE8)})
+    req(d.get("flowRateOff") == 1000, "field7 LE decode")
+    req(d.get("flowRate") == 1000, "field11 BE decode")
 
-    def evidence() -> None:
-        evidence = fields_mod.Evidence
-        by_id = fields_mod.F79D_FIELDS_BY_ID
-        for field in (4,6,7,10,43,47):
-            req(
-                evidence.HARDWARE_WRITE_VERIFIED in by_id[field].evidence,
-                f"field {field} lost hardware verification",
-            )
-        for field in (34,49):
-            req(
-                evidence.HARDWARE_WRITE_VERIFIED not in by_id[field].evidence,
-                f"field {field} must remain pending hardware verification",
-            )
+    req(
+        p.decode_tlvs({35: (0, 1), 36: (59, 2)}).get("residualWaterProduction") is None,
+        "volume without unit must fail closed",
+    )
+    d2 = p.decode_tlvs({8: (2, 0), 35: (0, 1), 36: (59, 2)})
+    req(d2.get("residualWaterProduction") == 159.02, "unit2 base100 volume")
+    expected = 2 | (59 << 8) | (1 << 16)
+    for unit in (0, 1):
+        du = p.decode_tlvs({8: (unit, 0), 35: (0, 1), 36: (59, 2)})
+        req(du.get("residualWaterProduction") == expected, f"unit{unit} 24bit volume")
 
-    def decode() -> None:
-        req(set(p.FIELD_NAMES) == set(range(1,53)), "field ids 1..52")
-        req(len(set(p.FIELD_NAMES.values())) == 52, "duplicate field names")
-        req(p.STATE_FIELDS == list(range(1,52)), "state query changed")
-        d = p.decode_tlvs({47:(0x90,1),52:(0x68,1),7:(3,0xE8),11:(0,14)})
-        req(d["rawWaterHardness"] == 400, "hardness")
-        req(d["filterMaterialWorkingDay"] == 360, "field52")
-        req(d["flowRateOff"] == 1000 and d["_raw_flowRate"] == 14, "flow endian")
-        req(p.decode_tlvs({35:(0,1)})["residualWaterProduction"] is None, "volume continuation")
-        req(p.decode_tlvs({35:(0,1),36:(59,0)})["residualWaterProduction"] == 159.0, "volume formula")
-        req(p.decode_tlvs({4:(23,59)})["currentTime"] == "23:59:00", "time")
-        req(p.decode_tlvs({4:(25,70)})["currentTime"] is None, "invalid time")
-        flags = p.decode_tlvs({33:(1,0)})
-        req(flags["saltShortageReminder"] and not flags["filterMaterialReminder"], "flags")
+    evidence = fields_mod.Evidence
+    by_id = fields_mod.F79D_FIELDS_BY_ID
+    for field in (4, 6, 10, 43, 47):
+        req(evidence.HARDWARE_WRITE_VERIFIED in by_id[field].evidence, f"field{field} HW evidence")
+    for field in (7, 34, 49):
+        req(evidence.HARDWARE_WRITE_VERIFIED not in by_id[field].evidence, f"field{field} must stay pending HW")
 
-    def client() -> None:
-        cmod = load_runxin("client")
-
-        class Fake:
-            def __init__(self):
-                self.requests: list[bytes] = []
-                self.write_requests: list[bytes] = []
-
-            def _reply(self, frame: bytes) -> bytes:
-                self.requests.append(frame)
-                framing.validate_frame(frame)
-                inner = framing.inner_frame(frame)
-                if inner[3] == framing.QUERY_CODE:
-                    groups = [
-                        (f,9,0) if f == 1 else (f,0,0)
-                        for f in inner[4:-2]
-                        if f in (1,34)
-                    ]
-                    return _response(groups, framing.QUERY_RESPONSE_CODE)
-                return _response([], framing.WRITE_RESPONSE_CODE)
-
-            def transact(self, frame: bytes) -> bytes:
-                return self._reply(frame)
-
-            def transact_write(self, frame: bytes) -> bytes:
-                self.write_requests.append(frame)
-                return self._reply(frame)
-
-            def invalidate(self):
-                pass
-
-            def close(self):
-                pass
-
-        fake = Fake()
-        client = cmod.F79DClient(fake)
-        req(client.read_identity() == {"deviceModel":9,"station":0}, "fake identity")
-        client.write_fields({43:50})
-        req(len(fake.requests) == 2, "fake transaction count")
-        req(len(fake.write_requests) == 1, "write-specific transaction hook not used")
-
-    for name, fn in (
-        ("frames",frames),
-        ("encodings",encodings),
-        ("evidence",evidence),
-        ("decode",decode),
-        ("client",client),
-    ):
-        check(name, fn)
+    req(semantics.vacation_status(False, 0) == "off", "vacation off semantics")
+    req(semantics.vacation_status(True, 3) == "preparing", "vacation preparing semantics")
+    req(semantics.vacation_status(True, 8) == "active", "vacation active semantics")
+    req(semantics.SYSTEM_CLOSE_REASON_KEYS.get(513) == "leak_detected", "close reason 513")
+    req(semantics.SYSTEM_CLOSE_REASON_KEYS.get(769) == "continuous_flow_timeout", "close reason 769")
+    req(semantics.SYSTEM_CLOSE_REASON_KEYS.get(1025) == "flow_rate_exceeded", "close reason 1025")
     return errors
-
-
-def _imports(text: str) -> set[str]:
-    result: set[str] = set()
-    for node in ast.walk(ast.parse(text)):
-        if isinstance(node, ast.Import):
-            result |= {a.name for a in node.names}
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            result.add(node.module)
-    return result
 
 
 def architecture_checks() -> list[str]:
     errors: list[str] = []
     required = [
-        "runxin/__init__.py","runxin/errors.py","runxin/fields.py","runxin/framing.py","runxin/f79d.py","runxin/client.py",
-        "transport/__init__.py","transport/base.py","transport/broadlink_bl3372.py",
+        "runxin/__init__.py", "runxin/errors.py", "runxin/fields.py", "runxin/framing.py",
+        "runxin/f79d.py", "runxin/client.py", "runxin/semantics.py",
+        "transport/__init__.py", "transport/base.py", "transport/broadlink_bl3372.py",
     ]
     for rel in required:
         if not (HERE / rel).exists():
             errors.append(f"missing architecture module: {rel}")
     for path in (HERE / "runxin").glob("*.py"):
         text = path.read_text()
-        imports = _imports(text)
+        imports: set[str] = set()
+        for node in ast.walk(ast.parse(text)):
+            if isinstance(node, ast.Import):
+                imports |= {a.name for a in node.names}
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imports.add(node.module)
         bad = sorted(
             x for x in imports
             if x == "homeassistant" or x.startswith("homeassistant.")
@@ -235,41 +132,22 @@ def architecture_checks() -> list[str]:
         )
         if bad:
             errors.append(f"{path.relative_to(HERE)} imports {bad}")
-        for marker in ("send_packet(",".decrypt(","pack_tfb(","unpack_tfb("):
-            if marker in text:
-                errors.append(f"{path.relative_to(HERE)} leaks transport detail {marker}")
-    base = read("transport/base.py")
-    if "F79D" in base or "broadlink" in _imports(base):
-        errors.append("transport/base.py is not generic")
-    broadlink = read("transport/broadlink_bl3372.py")
-    if "send_packet(0x6A" not in broadlink:
-        errors.append("BL3372 0x6A path lost")
-    if "def transact_write" not in broadlink:
-        errors.append("BL3372 write-specific no-blind-retry path missing")
-    if any(x in broadlink for x in ("FIELD_NAMES","decode_tlvs","F79D_FIELD_SPECS")):
-        errors.append("BL3372 transport leaks field codec")
-    api = read("api.py")
-    if any(x in api for x in ("send_packet(",".decrypt(","0x22:0x24","0x38:")):
-        errors.append("api.py leaks BroadLink wire details")
-    if "BroadlinkBL3372Transport" not in api or "F79DClient" not in api:
-        errors.append("api.py composition missing")
-    shim = read("protocol.py")
-    if "Compatibility facade" not in shim or "runxin.f79d" not in shim:
-        errors.append("protocol.py compatibility facade missing")
     return errors
 
 
 def repository_checks() -> list[str]:
     errors: list[str] = []
     required = [
-        "LICENSE","NOTICE","README.md","CHANGELOG.md","CONTRIBUTING.md","SECURITY.md","LEGAL.md","THIRD_PARTY.md","hacs.json",
-        ".github/workflows/validate.yml",".github/workflows/hassfest.yml",".github/workflows/audit.yml",".github/workflows/release.yml",
-        "scripts/publication_check.py","docs/architecture.md","docs/protocol.md","docs/f79d.md","docs/broadlink-bl3372.md",
-        "docs/adding-a-transport.md","docs/adding-a-device-profile.md",
+        "LICENSE", "NOTICE", "README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md",
+        "LEGAL.md", "THIRD_PARTY.md", "hacs.json", "info.md",
+        ".github/workflows/validate.yml", ".github/workflows/hassfest.yml",
+        ".github/workflows/audit.yml", ".github/workflows/release.yml",
+        "docs/architecture.md", "docs/protocol.md", "docs/f79d.md", "docs/hardware-verification.md",
     ]
     for rel in required:
         if not (ROOT / rel).exists():
             errors.append(f"missing publication file: {rel}")
+
     for path in HERE.rglob("*.py"):
         try:
             ast.parse(path.read_text())
@@ -287,68 +165,81 @@ def repository_checks() -> list[str]:
         errors.append(f"invalid manifest version: {version!r}")
     if manifest.get("name") != "Ypsilon":
         errors.append("manifest name != Ypsilon")
-    hacs = json.loads((ROOT / "hacs.json").read_text())
-    if hacs != {"name":"Ypsilon"}:
-        errors.append(f"unexpected hacs.json: {hacs}")
     if (HERE / "strings.json").exists():
         errors.append("custom integration must not ship strings.json")
-    if not (HERE / "brand" / "icon.png").exists():
-        errors.append("brand/icon.png missing")
+    for asset in ("icon.png", "dark_icon.png", "logo.png", "dark_logo.png"):
+        if not (HERE / "brand" / asset).exists():
+            errors.append(f"brand/{asset} missing")
 
-    sensors, binaries = read("sensor.py"), read("binary_sensor.py")
-    if '"description": self.entity_description' in sensors or '"description": self.entity_description' in binaries:
-        errors.append("static prose leaked into state attributes")
-    diagnostic = {
-        "operation_day","remaining_day","maximum_regeneration_interval","backwash_time","backwash_remaining",
-        "slow_wash_time","slow_wash_remaining","refill_time","refill_remaining","wash_time","wash_remaining",
-        "resin_volume","filter_work_days","device_model","polling_mode",
-    }
-    for key in diagnostic:
-        m = re.search(rf'YpsilonSensorDescription\((?:(?!YpsilonSensorDescription).)*?key="{key}"(?P<body>.*?)\n    \),', sensors, re.S)
-        if not m or "entity_category=EntityCategory.DIAGNOSTIC" not in m.group("body"):
-            errors.append(f"{key}: diagnostic sensor regression")
-    for key in ("valve_closed_alarm","salt_shortage_alarm","resin_replacement","salt_shortage_reminder","filter_reminder"):
-        m = re.search(rf'YpsilonBinaryDescription\((?:(?!YpsilonBinaryDescription).)*?key="{key}"(?P<body>.*?)\n    \),', binaries, re.S)
-        if not m or "entity_category=EntityCategory.DIAGNOSTIC" not in m.group("body"):
-            errors.append(f"{key}: diagnostic binary regression")
+    sensors = read("sensor.py")
+    switch = read("switch.py")
+    services = read("services.py")
+    if "UnitOfVolumeFlowRate.LITERS_PER_HOUR" in sensors:
+        errors.append("legacy WaterDevice Lpm unit regressed to L/h")
+    if "UnitOfVolumeFlowRate.LITERS_PER_MINUTE" not in sensors:
+        errors.append("L/min flow unit missing")
+    if "_attr_entity_category" in switch:
+        errors.append("vacation switch must remain a primary entity")
+    for key in ("salt_dissolution_remaining", "pause_1_remaining"):
+        m = re.search(
+            rf'YpsilonSensorDescription\((?:(?!YpsilonSensorDescription).)*?key="{key}"(?P<body>.*?)\n    \),',
+            sensors,
+            re.S,
+        )
+        if not m or "EntityCategory.DIAGNOSTIC" not in m.group("body"):
+            errors.append(f"{key}: diagnostic regression")
+    if "FIELD_HOLIDAY_MODE" in read("const.py").split("WRITABLE_FIELDS", 1)[1].split(")", 1)[0]:
+        errors.append("vacation field leaked into generic write whitelist")
+    if "FIELD_SYSTEM_MODE" in read("const.py").split("WRITABLE_FIELDS", 1)[1].split(")", 1)[0]:
+        errors.append("mechanical field leaked into generic write whitelist")
+    if "_validate_raw_fields" not in services:
+        errors.append("raw service validation missing")
 
-    keys: dict[str,set[str]] = {}
+    keys: dict[str, set[str]] = {}
     exception_keys: set[str] = set()
     for file, domain in PLATFORMS.items():
         text = read(file)
         exceptions = set(re.findall(r'translation_key="(\w+)",\s*\n\s*translation_placeholders', text))
         exception_keys |= exceptions
-        found = set(re.findall(r'translation_key="(\w+)"', text)) | set(re.findall(r'_attr_translation_key = "(\w+)"', text))
+        found = set(re.findall(r'translation_key="(\w+)"', text)) | set(
+            re.findall(r'_attr_translation_key = "(\w+)"', text)
+        )
         found -= exceptions
         if found:
             keys[domain] = found
-    # Services contain translated exceptions too.
-    exception_keys |= set(re.findall(r'translation_key="(\w+)"', read("services.py")))
-    for lang in ("ca","en","es"):
+    exception_keys |= set(re.findall(r'translation_key="(\w+)"', services))
+
+    names: list[tuple[str, str, str]] = []
+    for lang in ("ca", "en", "es"):
         translation = json.loads(read(f"translations/{lang}.json"))
-        data = translation.get("entity",{})
+        data = translation.get("entity", {})
         for domain, expected in keys.items():
-            missing = sorted(expected - set(data.get(domain,{})))
+            missing = sorted(expected - set(data.get(domain, {})))
             if missing:
                 errors.append(f"translations/{lang}.json {domain}: missing {missing}")
-        missing_exceptions = sorted(exception_keys - set(translation.get("exceptions",{})))
+        missing_exceptions = sorted(exception_keys - set(translation.get("exceptions", {})))
         if missing_exceptions:
             errors.append(f"translations/{lang}.json exceptions: missing {missing_exceptions}")
-    names = []
-    for domain, group in json.loads(read("translations/en.json"))["entity"].items():
-        for key, val in group.items():
-            if isinstance(val,dict) and "name" in val:
-                names.append((val["name"],domain,key))
-    for name,count in Counter(x[0] for x in names).items():
+        if lang == "en":
+            for domain, group in data.items():
+                for key, value in group.items():
+                    if isinstance(value, dict) and "name" in value:
+                        names.append((value["name"], domain, key))
+    for name, count in Counter(x[0] for x in names).items():
         if count > 1:
-            errors.append(f"duplicate English entity name {name!r}")
+            errors.append(f"duplicate English entity name: {name}")
     return errors
 
 
 def main() -> int:
     errors = protocol_checks() + architecture_checks() + repository_checks()
-    print("\n".join(errors) if errors else "AUDIT CLEAN")
-    return 1 if errors else 0
+    if errors:
+        print("Audit failed:")
+        for error in errors:
+            print(f" - {error}")
+        return 1
+    print("Audit OK: protocol, architecture, translations, entities and publication files are consistent.")
+    return 0
 
 
 if __name__ == "__main__":

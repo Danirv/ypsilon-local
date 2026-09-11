@@ -1,22 +1,25 @@
-# Ypsilon 2.5.0
+# Ypsilon 2.6.0
 
 Local Home Assistant integration for compatible Runxin F79D / BroadLink BL3372 water softeners, tested with ATH/BWT Ypsilon G6.
 
-## 2.5.0
+## 2.6.0
 
-This release improves semantic accuracy without widening the mechanical write surface:
+This release aligns the local protocol implementation more closely with the legacy WaterDevice codec and improves vacation-state handling, safety policy, diagnostics and branding.
 
-- adds a read-only Work pattern enum for F79D field 9 using the exact legacy WaterDevice code mapping;
-- keeps the stable regeneration-mode states while presenting them more clearly as metered/volume-based versus time/day-based;
-- corrects Home Assistant state classes so historical weekly averages and controller cycle/configuration quantities are not misrepresented as present-time measurements;
-- keeps daily consumption as `total_increasing`, and instantaneous flow plus remaining treatment capacity as `measurement`;
-- documents the evidence behind those state-class choices using legacy WaterDevice semantics, observed device behavior and Home Assistant's statistics model;
-- records that the daily counter semantics are strongly supported, while a continuous within-day monotonic/reset trace remains an optional future validation point;
-- centralizes F79D enum semantics in the transport-neutral protocol layer;
-- enriches diagnostics with interpreted protocol codes while retaining raw state;
-- documents verified cubic-metre volume and flow semantics and leaves cloud-only `regenerationTimes` intentionally unmapped;
-- adds regression tests for enum mappings and state-class choices.
+Highlights:
 
-No new protocol writes are enabled in this release. Work pattern remains read-only, and the existing conservative write/read-back policy is unchanged.
+- corrects field 7 (`flowRateOff`) to little-endian while retaining field 11 (`flowRate`) as big-endian;
+- makes volume-pair decoding depend on `waterVolumeUnit`;
+- corrects unit-code-1 flow display to L/min;
+- adds a separate Vacation status enum (`off`, `preparing`, `active`) without hiding the raw valve phase;
+- applies the legacy application's vacation entry/exit state-machine guards;
+- prevents stable vacation mode from forcing permanent fast polling;
+- adds diagnostic countdowns for fields 50 and 51;
+- interprets known field-12 system-close reason codes while preserving the raw value;
+- narrows and validates the generic administrator raw-write surface;
+- changes field 31's visible meaning to low brine concentration;
+- withdraws field 7's previous hardware-write evidence until the corrected LE path is physically revalidated;
+- refreshes English, Catalan and Spanish translations and protocol documentation;
+- ships refreshed matching Home Assistant icon/logo brand assets.
 
-The reusable `runxin/` package remains independent from Home Assistant and BroadLink. The Home Assistant integration itself still supports only the verified F79D model 9 + BroadLink BL3372 (`0x520F`) combination until additional hardware is tested.
+The transport-neutral `runxin/` layer remains independent from Home Assistant and BroadLink. The Home Assistant integration itself continues to support only the verified F79D model 9 + BroadLink BL3372 (`0x520F`) combination until additional hardware is tested.
