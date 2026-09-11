@@ -5,19 +5,24 @@ Integración local para descalcificadores compatibles con **Runxin F79D + BroadL
 - Descubrimiento DHCP y configuración manual por IP.
 - Lectura local de caudal, consumo diario, capacidad restante, fase de válvula, modo de regeneración, patrón de trabajo y avisos.
 - Escrituras con lectura física posterior estricta: un ACK no se considera estado confirmado.
-- Controles de dureza, sal, protecciones de caudal/tiempo, hora de regeneración, reloj, vacaciones y regeneración forzada.
-- Modo vacaciones con estado separado `desactivado / preparando / activo` y precondiciones coherentes con WaterDevice.
+- Controles verificados de dureza, cantidad de sal añadida, protecciones de caudal/tiempo, hora de regeneración, reloj y regeneración forzada.
+- Estado de vacaciones solo de lectura; la 2.6.1 retira el switch de vacaciones porque la escritura local directa del campo 49 no quedó confirmada físicamente en el G6 probado.
 - Diagnósticos para fases de lavado, disolución de sal, pausa 1, errores, comunicación y mantenimiento.
-- Traducciones CA/ES/EN y branding local para Home Assistant 2026.3+.
+- Traducciones CA/ES/EN y branding local con icono cuadrado y logotipo horizontal independientes.
 
-## Cambios principales de la 2.6.0
+## Cambios principales de la 2.6.1
 
-- El campo 7 (`flowRateOff`) pasa a little-endian, tal como indica el códec WaterDevice; el campo 11 sigue siendo big-endian.
-- Los volúmenes 35–42 se decodifican según `waterVolumeUnit`.
-- La unidad 1 de caudal se corrige a L/min.
-- `vacationPattern=1 + station=8` se trata como el estado estable de vacaciones y no mantiene el sondeo rápido permanentemente.
-- Se añaden los campos diagnósticos 50 y 51 y la interpretación de motivos de cierre conocidos.
-- El servicio avanzado genérico queda limitado a configuraciones reversibles y validadas.
+- Vacaciones: el campo 49 se sigue leyendo y el sensor `desactivado / preparando / activo` se mantiene, pero no se expone ninguna escritura hasta conocer y verificar físicamente la acción local del firmware actual.
+- Consumo diario: se mantiene como contador `TOTAL_INCREASING` que crece durante el día y se reinicia al cambio de día.
+- Campo 39: pasa a llamarse **Consumo semanal medio del controlador**. No es el total semanal de las barras históricas de la app oficial.
+- Campo 41: **Capacidad de tratamiento por ciclo**, no un contador de consumo.
+- Campo 43: **Cantidad de sal añadida**, un valor de registro/configuración en kg; no es el nivel de sal restante y no se decrementa automáticamente después de una regeneración.
+- Branding regenerado: `icon` 256×256 con márgenes seguros, `icon@2x`, logo horizontal y variantes 2x/dark.
+- Tests y `scripts/audit.py` amplían las regresiones de vacaciones, estadísticas de agua, sal y geometría del branding.
+
+## Estadísticas antiguas de Home Assistant
+
+Versiones anteriores crearon estadísticas de largo plazo para el consumo medio semanal y la capacidad por ciclo cuando todavía declaraban `state_class`. Tras actualizar, Home Assistant puede ofrecer eliminar esas estadísticas obsoletas. Es correcto eliminarlas: esto no elimina la entidad ni el historial normal del Recorder.
 
 ## Instalación
 
@@ -25,10 +30,10 @@ Con HACS, añade `https://github.com/Danirv/ypsilon-local` como repositorio pers
 
 ## Consumo de agua
 
-Para el panel de agua de Home Assistant, utiliza **Consumo diario** como consumo acumulado. **Caudal** es una muestra instantánea y puede no reflejar consumos muy cortos que queden entre dos sondeos.
+Para consumo acumulado utiliza **Consumo diario**. **Caudal** es una muestra instantánea y puede no reflejar consumos muy cortos entre dos sondeos. Para obtener un total real de la semana en Home Assistant, derívalo del contador diario/estadísticas; no utilices el campo 39 como si fuera el total de la semana actual.
 
 ## Seguridad
 
-La integración puede cambiar parámetros e iniciar movimientos de válvula. No es un controlador de seguridad certificado ni debe ser la única protección contra fugas o inundaciones.
+La integración puede cambiar parámetros e iniciar movimientos de válvula. No es un controlador de seguridad certificado ni debe ser la única protección contra fugas o inundaciones. Un campo conocido por el códec no se convierte en control de usuario hasta que la acción real queda verificada físicamente.
 
-Consulta el [README principal](../README.md), [`f79d.es.md`](f79d.es.md), [`hardware-verification.es.md`](hardware-verification.es.md), [SECURITY](../SECURITY.md) y [LEGAL](../LEGAL.md).
+Consulta el [README principal](../README.md), [`waterdevice-audit.es.md`](waterdevice-audit.es.md), [`f79d.es.md`](f79d.es.md), [`hardware-verification.es.md`](hardware-verification.es.md), [SECURITY](../SECURITY.md) y [LEGAL](../LEGAL.md).
