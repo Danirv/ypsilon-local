@@ -9,10 +9,12 @@ All notable changes to this project are documented here.
 - Centralized transport-neutral semantic mappings for F79D station, unit, regeneration-pattern and work-pattern codes.
 - Semantic protocol summary in Home Assistant diagnostics while retaining the raw controller state.
 - Regression tests for work-pattern mapping and Home Assistant state-class choices.
+- Documentation of the evidence behind each water-related Home Assistant `state_class`: legacy WaterDevice semantics, observed device behavior and Home Assistant statistics rules.
 
 ### Changed
-- Correct Home Assistant statistics semantics: `averageWeeklyWaterConsumption` and `periodicWaterProduction` no longer declare `measurement`, because the former is already a historical aggregation and the latter is not a present-time measurement or cumulative meter.
+- Correct Home Assistant statistics semantics: `averageWeeklyWaterConsumption` and `periodicWaterProduction` no longer declare `measurement`, because the former is already a historical aggregation and the latter is a controller configuration/cycle-capacity value rather than a present-time measurement or cumulative meter.
 - Keep `dailyWaterConsumption` as `total_increasing`, and keep instantaneous flow and remaining treatment capacity as `measurement`.
+- Explicitly record that `dailyWaterConsumption` is strongly supported as a daily-reset cumulative total by its app/protocol semantics and observed cross-day values, while a continuous within-day monotonic/reset trace remains a useful future validation rather than a prerequisite for the current state class.
 - Improve regeneration-mode translations without changing the stable `flow` / `time` entity states.
 - Clarify time-mode day labels and rename the salt configuration as salt added.
 - Mark field 9 as observed on real hardware while keeping it read-only; no new mechanical writes are enabled.
