@@ -10,7 +10,6 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -35,7 +34,6 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     FIELD_CURRENT_TIME,
-    FIELD_HOLIDAY_MODE,
     FIELD_SYSTEM_MODE,
     MAX_TOLERATED_FAILURES,
     MECHANICAL_VERIFY_INTERVAL,
@@ -97,6 +95,9 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @staticmethod
     def _decorate_semantics(data: dict[str, Any]) -> None:
+        # Field 49 is still authoritative read-back state. The v2.6.1 HA layer
+        # intentionally exposes it read-only because the tested G6 ACKed a
+        # direct local field-49 control frame without changing physical state.
         data["_vacationStatus"] = vacation_status(
             data.get("vacationPattern"), data.get("station")
         )
@@ -107,9 +108,9 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return True
 
         station = data.get("station")
-        # In the legacy app, vacation mode settles at systemMode/station 8.
-        # Treat that combination as a stable state, not perpetual mechanical
-        # activity, otherwise adaptive polling stays fast for the whole holiday.
+        # The legacy WaterDevice UI treats vacation mode as settled at station 8.
+        # This remains useful read-only semantics even though local vacation
+        # writes are not exposed on the tested hardware.
         if data.get("vacationPattern") and station == 8:
             return False
         return station not in (None, 0, 5)
@@ -404,33 +405,3 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         f"Write ACKed but not confirmed within {timeout:.0f}s ({mismatch})"
                     ) from last_error
                 await asyncio.sleep(min(interval, remaining))
-
-    async def async_set_vacation_mode(self, enabled: bool) -> None:
-        """Apply the legacy application's vacation-mode state-machine guards."""
-        current = await self._async_strict_read()
-        station = current.get("station")
-        vacation = bool(current.get("vacationPattern"))
-
-        if enabled:
-            if vacation:
-                self.async_set_updated_data(current)
-                return
-            if station != 0:
-                raise ServiceValidationError(
-                    translation_domain=DOMAIN,
-                    translation_key="vacation_enable_invalid_state",
-                    translation_placeholders={"station": str(station)},
-                )
-            await self.async_write_and_verify({FIELD_HOLIDAY_MODE: 1})
-            return
-
-        if not vacation:
-            self.async_set_updated_data(current)
-            return
-        if station != 8:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="vacation_disable_invalid_state",
-                translation_placeholders={"station": str(station)},
-            )
-        await self.async_write_and_verify({FIELD_HOLIDAY_MODE: 0})
