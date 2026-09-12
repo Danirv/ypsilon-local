@@ -67,9 +67,12 @@ WRITABLE_FIELDS: Final = frozenset(
     }
 )
 
+# Ranges mirror the recovered WaterDevice settings UI for the supported F79D.
+# Field 7 is raw hundredths; the HA control is enabled only in unit code 2,
+# where WaterDevice caps the displayed value at 10.00 m³/h => raw 1000.
 SAFE_RAW_WRITE_RANGES: Final = {
-    FIELD_CONTINUOUS_WATER_TIME: (0, 255),
-    FIELD_FLOW_RATE_OFF: (0, 65535),
+    FIELD_CONTINUOUS_WATER_TIME: (0, 120),
+    FIELD_FLOW_RATE_OFF: (0, 1000),
     FIELD_SALT_ADDITION: (0, 100),
     FIELD_RAW_WATER_HARDNESS: (50, 1500),
 }

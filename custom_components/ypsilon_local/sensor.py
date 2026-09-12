@@ -20,6 +20,10 @@ from homeassistant.helpers.typing import StateType
 from .const import FLOW_RATE_SCALE_BY_UNIT, FLOW_RATE_SCALE_DEFAULT
 from .entity import YpsilonEntity
 from .runxin.semantics import (
+    BRINE_DRAW_MODE_KEYS,
+    DEVICE_LANGUAGE_KEYS,
+    DEVICE_TIME_SCHEME_KEYS,
+    OUTPUT_RELAY_MODE_KEYS,
     REGENERATION_PATTERN_KEYS,
     STATION_KEYS,
     VACATION_STATUS_KEYS,
@@ -178,13 +182,16 @@ SENSORS = (
     ),
     YpsilonSensorDescription(
         key="language_code", translation_key="language_code", field="language", protocol_field="2",
-        entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
-        icon="mdi:translate",
+        device_class=SensorDeviceClass.ENUM, options=list(DEVICE_LANGUAGE_KEYS.values()),
+        value_map=DEVICE_LANGUAGE_KEYS, entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False, icon="mdi:translate",
     ),
     YpsilonSensorDescription(
         key="device_time_scheme", translation_key="device_time_scheme", field="deviceTimeScheme",
-        protocol_field="3", entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False, icon="mdi:clock-cog-outline",
+        protocol_field="3", device_class=SensorDeviceClass.ENUM,
+        options=list(DEVICE_TIME_SCHEME_KEYS.values()), value_map=DEVICE_TIME_SCHEME_KEYS,
+        entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
+        icon="mdi:clock-cog-outline",
     ),
     YpsilonSensorDescription(
         key="washing_increase_number", translation_key="washing_increase_number",
@@ -200,8 +207,10 @@ SENSORS = (
     ),
     YpsilonSensorDescription(
         key="output_relay_mode", translation_key="output_relay_mode", field="outRelayMode",
-        protocol_field="24", entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False, icon="mdi:electric-switch",
+        protocol_field="24", device_class=SensorDeviceClass.ENUM,
+        options=list(OUTPUT_RELAY_MODE_KEYS.values()), value_map=OUTPUT_RELAY_MODE_KEYS,
+        entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
+        icon="mdi:electric-switch",
     ),
     YpsilonSensorDescription(
         key="resin_regeneration_alarm_number", translation_key="resin_regeneration_alarm_number",
@@ -210,8 +219,10 @@ SENSORS = (
     ),
     YpsilonSensorDescription(
         key="brine_draw_mode", translation_key="brine_draw_mode", field="absorbSaltMode",
-        protocol_field="48", entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False, icon="mdi:water-cog-outline",
+        protocol_field="48", device_class=SensorDeviceClass.ENUM,
+        options=list(BRINE_DRAW_MODE_KEYS.values()), value_map=BRINE_DRAW_MODE_KEYS,
+        entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
+        icon="mdi:water-cog-outline",
     ),
     YpsilonSensorDescription(
         key="volume_unit", translation_key="volume_unit", field="waterVolumeUnit", protocol_field="8",

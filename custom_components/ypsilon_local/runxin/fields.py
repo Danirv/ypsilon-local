@@ -63,17 +63,20 @@ SALT_HW_CLOUD_WRITE = (
 
 F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(1, "deviceModel", evidence=OBSERVED),
-    FieldSpec(2, "language", write_codec=FieldCodec.U8),
-    FieldSpec(3, "deviceTimeScheme"),
+    FieldSpec(2, "language", write_codec=FieldCodec.U8, evidence=OBSERVED,
+              notes="WaterDevice enum 0..7: Chinese, English, Spanish, French, Russian, Italian, German, Polish."),
+    FieldSpec(3, "deviceTimeScheme", evidence=OBSERVED,
+              notes="WaterDevice enum: 0=12-hour, 1=24-hour."),
     FieldSpec(4, "currentTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM, evidence=HW_WRITE),
     FieldSpec(5, "washInitiationTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM),
-    FieldSpec(6, "continuousWaterTime", write_codec=FieldCodec.U8, evidence=HW_WRITE, unit_hint="min"),
+    FieldSpec(6, "continuousWaterTime", write_codec=FieldCodec.U8, evidence=HW_WRITE, unit_hint="min",
+              notes="WaterDevice settings range 0..120 min."),
     # Legacy WaterDevice serialises field 7 little-endian. The previous project
     # implementation used BE in both directions and therefore could self-confirm
     # the wrong byte order. Keep hardware-write evidence withdrawn until LE is
     # exercised again end-to-end on the physical controller.
     FieldSpec(7, "flowRateOff", FieldCodec.U16_LE, FieldCodec.U16_LE, evidence=OBSERVED,
-              notes="Hundredths of the selected flow unit; legacy codec is little-endian."),
+              notes="Hundredths of selected flow unit; legacy codec is LE. In unit code 2 WaterDevice caps display at 10.00 m³/h (raw 1000)."),
     FieldSpec(8, "waterVolumeUnit", evidence=OBSERVED),
     FieldSpec(9, "workPattern", write_codec=FieldCodec.U8, evidence=OBSERVED,
               notes="Legacy WaterDevice enum codes 0..9; exposed read-only by HA."),
@@ -83,8 +86,10 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(11, "flowRate", FieldCodec.U16_BE, evidence=OBSERVED,
               notes="Hundredths of the selected flow unit; raw counter is preserved."),
     FieldSpec(12, "systemCloseReason", FieldCodec.U16_LE),
-    FieldSpec(13, "washingIncreaseNumber", write_codec=FieldCodec.U8),
-    FieldSpec(14, "backWashIntervalNumber", write_codec=FieldCodec.U8),
+    FieldSpec(13, "washingIncreaseNumber", write_codec=FieldCodec.U8, evidence=OBSERVED,
+              notes="WaterDevice numeric setting range 0..20; UI label 'Washing frequency'."),
+    FieldSpec(14, "backWashIntervalNumber", write_codec=FieldCodec.U8, evidence=OBSERVED,
+              notes="WaterDevice numeric setting range 0..20; backwash interval count."),
     FieldSpec(15, "backWashTime", FieldCodec.DURATION_MIN_SEC, FieldCodec.DURATION_MIN_SEC),
     FieldSpec(16, "backWashTimeRemaining", FieldCodec.DURATION_MIN_SEC),
     FieldSpec(17, "absorbSaltSlowWashTime", FieldCodec.DURATION_MIN_SEC, FieldCodec.DURATION_MIN_SEC),
@@ -94,8 +99,10 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(21, "washTime", FieldCodec.DURATION_MIN_SEC, FieldCodec.DURATION_MIN_SEC),
     FieldSpec(22, "washCountdownTime", FieldCodec.DURATION_MIN_SEC),
     FieldSpec(23, "maximumRegenerationIntervalDay", write_codec=FieldCodec.U8, unit_hint="day"),
-    FieldSpec(24, "outRelayMode", write_codec=FieldCodec.U8),
-    FieldSpec(25, "regenerationAlarmNumber", FieldCodec.U16_LE, FieldCodec.U16_LE),
+    FieldSpec(24, "outRelayMode", write_codec=FieldCodec.U8, evidence=OBSERVED,
+              notes="WaterDevice enum: 0=b-01, 1=b-02."),
+    FieldSpec(25, "regenerationAlarmNumber", FieldCodec.U16_LE, FieldCodec.U16_LE, evidence=OBSERVED,
+              notes="Regeneration-count reminder threshold; WaterDevice range 5..1200. Observed G6 value: 700."),
     FieldSpec(26, "resinVolume", unit_hint="L", evidence=OBSERVED),
     FieldSpec(27, "clockChipFault", FieldCodec.BOOL),
     FieldSpec(28, "multiplePositionSignalFault", FieldCodec.BOOL),
@@ -124,7 +131,8 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(45, "remainingDay", evidence=OBSERVED, unit_hint="day"),
     FieldSpec(46, "regenerationPattern", write_codec=FieldCodec.U8, evidence=OBSERVED),
     FieldSpec(47, "rawWaterHardness", FieldCodec.U16_LE, FieldCodec.U16_LE, evidence=HW_WRITE, unit_hint="mg/L"),
-    FieldSpec(48, "absorbSaltMode", write_codec=FieldCodec.U8),
+    FieldSpec(48, "absorbSaltMode", write_codec=FieldCodec.U8, evidence=OBSERVED,
+              notes="WaterDevice enum: 0=reverse brine draw (逆吸), 1=forward brine draw (顺吸)."),
     # Preserve the legacy codec's ability to encode field 49 for protocol
     # research, but do not mark it as a verified write. On the tested Ypsilon G6
     # a direct local write was transport-ACKed yet fresh read-back stayed false.

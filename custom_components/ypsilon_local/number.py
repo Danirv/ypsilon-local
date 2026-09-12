@@ -40,13 +40,13 @@ NUMBERS = (
     ),
     YpsilonNumberDescription(
         key="continuous_water_time", translation_key="continuous_water_time", field_id=6,
-        field_name="continuousWaterTime", native_min_value=0, native_max_value=255,
+        field_name="continuousWaterTime", native_min_value=0, native_max_value=120,
         native_step=1, native_unit_of_measurement=UnitOfTime.MINUTES,
         entity_category=EntityCategory.CONFIG, icon="mdi:pipe-leak",
     ),
     YpsilonNumberDescription(
         key="flow_rate_off", translation_key="flow_rate_off", field_id=7, field_name="flowRateOff",
-        hundredths=True, native_min_value=0, native_max_value=655.35, native_step=0.01,
+        hundredths=True, native_min_value=0, native_max_value=10.0, native_step=0.01,
         native_unit_of_measurement=UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
         entity_category=EntityCategory.CONFIG, icon="mdi:valve-closed",
     ),

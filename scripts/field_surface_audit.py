@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import re
 import sys
@@ -21,8 +22,6 @@ PLATFORM_FILES = (
 # Field 49 feeds the derived vacation_status sensor together with station 34.
 SEMANTICALLY_COMPOSED_FIELDS = {49}
 
-# These controller settings have uncertain/low-value user semantics. They are
-# still exposed for protocol diagnostics, but must stay disabled by default.
 RAW_DIAGNOSTICS_DISABLED_BY_DEFAULT = {
     "language_code": 2,
     "device_time_scheme": 3,
@@ -30,6 +29,16 @@ RAW_DIAGNOSTICS_DISABLED_BY_DEFAULT = {
     "backwash_interval_number": 14,
     "output_relay_mode": 24,
     "brine_draw_mode": 48,
+}
+
+RECOVERED_ENUMS = {
+    "language_code": {
+        "field": 2,
+        "states": {"chinese", "english", "spanish", "french", "russian", "italian", "german", "polish"},
+    },
+    "device_time_scheme": {"field": 3, "states": {"12_hour", "24_hour"}},
+    "output_relay_mode": {"field": 24, "states": {"b_01", "b_02"}},
+    "brine_draw_mode": {"field": 48, "states": {"reverse", "forward"}},
 }
 
 
@@ -100,13 +109,30 @@ def main() -> int:
         if f'protocol_field="{field_id}"' not in block:
             errors.append(f"{key}: expected protocol field {field_id}")
         if "entity_registry_enabled_default=False" not in block:
-            errors.append(f"{key}: raw diagnostic must be disabled by default")
+            errors.append(f"{key}: diagnostic must be disabled by default")
+
+    for key, policy in RECOVERED_ENUMS.items():
+        block = description_block(sensor_source, key)
+        if "SensorDeviceClass.ENUM" not in block:
+            errors.append(f"{key}: recovered enum is not exposed as SensorDeviceClass.ENUM")
+        if "value_map=" not in block:
+            errors.append(f"{key}: recovered enum has no raw-code value map")
+        for lang in ("en", "es", "ca"):
+            translation = json.loads((HERE / "translations" / f"{lang}.json").read_text(encoding="utf-8"))
+            entity = translation.get("entity", {}).get("sensor", {}).get(key, {})
+            translated = set(entity.get("state", {}))
+            if translated != policy["states"]:
+                errors.append(
+                    f"translations/{lang}.json {key}: states {sorted(translated)} != {sorted(policy['states'])}"
+                )
 
     resin_block = description_block(sensor_source, "resin_regeneration_alarm_number")
     if 'protocol_field="25"' not in resin_block:
         errors.append("resin_regeneration_alarm_number: expected protocol field 25")
     if "entity_registry_enabled_default=False" in resin_block:
         errors.append("field 25 resin-maintenance threshold should be enabled by default")
+    if "SensorDeviceClass.ENUM" in resin_block:
+        errors.append("field 25 is a numeric threshold, not an enum")
 
     if errors:
         print("Field-surface audit failed:")
@@ -115,8 +141,8 @@ def main() -> int:
         return 1
 
     print(
-        "Field-surface audit OK: all F79D fields are directly exposed or "
-        "explicitly represented by a semantic entity."
+        "Field-surface audit OK: all F79D fields are accounted for and recovered "
+        "enum diagnostics preserve semantic states and translations."
     )
     return 0
 
