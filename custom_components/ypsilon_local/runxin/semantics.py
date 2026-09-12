@@ -2,6 +2,32 @@
 
 from __future__ import annotations
 
+DEVICE_LANGUAGE_KEYS: dict[int, str] = {
+    0: "chinese",
+    1: "english",
+    2: "spanish",
+    3: "french",
+    4: "russian",
+    5: "italian",
+    6: "german",
+    7: "polish",
+}
+
+DEVICE_TIME_SCHEME_KEYS: dict[int, str] = {
+    0: "12_hour",
+    1: "24_hour",
+}
+
+OUTPUT_RELAY_MODE_KEYS: dict[int, str] = {
+    0: "b_01",
+    1: "b_02",
+}
+
+BRINE_DRAW_MODE_KEYS: dict[int, str] = {
+    0: "reverse",
+    1: "forward",
+}
+
 STATION_KEYS: dict[int, str] = {
     0: "in_service",
     1: "backwash",
