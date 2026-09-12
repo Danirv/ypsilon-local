@@ -177,6 +177,43 @@ SENSORS = (
         value_map=MODEL_NAMES, entity_category=EntityCategory.DIAGNOSTIC,
     ),
     YpsilonSensorDescription(
+        key="language_code", translation_key="language_code", field="language", protocol_field="2",
+        entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
+        icon="mdi:translate",
+    ),
+    YpsilonSensorDescription(
+        key="device_time_scheme", translation_key="device_time_scheme", field="deviceTimeScheme",
+        protocol_field="3", entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False, icon="mdi:clock-cog-outline",
+    ),
+    YpsilonSensorDescription(
+        key="washing_increase_number", translation_key="washing_increase_number",
+        field="washingIncreaseNumber", protocol_field="13",
+        entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
+        icon="mdi:counter",
+    ),
+    YpsilonSensorDescription(
+        key="backwash_interval_number", translation_key="backwash_interval_number",
+        field="backWashIntervalNumber", protocol_field="14",
+        entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
+        icon="mdi:counter",
+    ),
+    YpsilonSensorDescription(
+        key="output_relay_mode", translation_key="output_relay_mode", field="outRelayMode",
+        protocol_field="24", entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False, icon="mdi:electric-switch",
+    ),
+    YpsilonSensorDescription(
+        key="resin_regeneration_alarm_number", translation_key="resin_regeneration_alarm_number",
+        field="regenerationAlarmNumber", protocol_field="25",
+        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:counter",
+    ),
+    YpsilonSensorDescription(
+        key="brine_draw_mode", translation_key="brine_draw_mode", field="absorbSaltMode",
+        protocol_field="48", entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False, icon="mdi:water-cog-outline",
+    ),
+    YpsilonSensorDescription(
         key="volume_unit", translation_key="volume_unit", field="waterVolumeUnit", protocol_field="8",
         device_class=SensorDeviceClass.ENUM, options=list(VOLUME_UNIT_KEYS.values()),
         entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
