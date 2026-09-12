@@ -58,11 +58,13 @@ def expand_protocol_field(value: str) -> set[int]:
 
 def entity_protocol_fields() -> set[int]:
     fields: set[int] = set()
-    pattern = re.compile(r'protocol_field="([^"]+)"')
+    protocol_pattern = re.compile(r'protocol_field="([^"]+)"')
+    field_id_pattern = re.compile(r"field_id=(\d+)")
     for filename in PLATFORM_FILES:
         text = (HERE / filename).read_text(encoding="utf-8")
-        for label in pattern.findall(text):
+        for label in protocol_pattern.findall(text):
             fields |= expand_protocol_field(label)
+        fields |= {int(value) for value in field_id_pattern.findall(text)}
     return fields
 
 
@@ -90,7 +92,7 @@ def main() -> int:
     if missing:
         errors.append(f"readable F79D fields without HA surface policy: {missing}")
     if unknown:
-        errors.append(f"HA protocol_field references unknown F79D fields: {unknown}")
+        errors.append(f"HA protocol references unknown F79D fields: {unknown}")
 
     sensor_source = (HERE / "sensor.py").read_text(encoding="utf-8")
     for key, field_id in RAW_DIAGNOSTICS_DISABLED_BY_DEFAULT.items():
