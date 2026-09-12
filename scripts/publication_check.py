@@ -10,6 +10,8 @@ import re
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "custom_components" / "ypsilon_local" / "manifest.json"
 SEMVER = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
+CHANGELOG_VERSION = re.compile(r"^## \[([^\]]+)\]", re.MULTILINE)
+INFO_VERSION = re.compile(r"^# Ypsilon ([^\s]+)\s*$", re.MULTILINE)
 
 
 def main() -> int:
@@ -21,10 +23,21 @@ def main() -> int:
     else:
         info = (ROOT / "info.md").read_text()
         changelog = (ROOT / "CHANGELOG.md").read_text()
-        if f"# Ypsilon {version}" not in info:
-            errors.append(f"info.md does not identify current version {version}")
-        if f"## [{version}]" not in changelog:
-            errors.append(f"CHANGELOG.md has no section for current version {version}")
+
+        info_match = INFO_VERSION.search(info)
+        info_version = info_match.group(1) if info_match else None
+        if info_version != version:
+            errors.append(
+                f"info.md current version is {info_version!r}, expected manifest {version}"
+            )
+
+        changelog_match = CHANGELOG_VERSION.search(changelog)
+        changelog_version = changelog_match.group(1) if changelog_match else None
+        if changelog_version != version:
+            errors.append(
+                "CHANGELOG.md first release section is "
+                f"{changelog_version!r}, expected manifest {version}"
+            )
 
     for field in ("documentation", "issue_tracker"):
         if "__GITHUB_USER__" in str(manifest.get(field, "")):

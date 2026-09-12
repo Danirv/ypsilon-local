@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented here.
 
+## [2.6.2] - 2026-09-12
+
+### Fixed
+- Expose recovered fields 2 (`language`), 3 (`deviceTimeScheme`), 24 (`outRelayMode`) and 48 (`absorbSaltMode`) as semantic Home Assistant enums instead of raw integers.
+- Align the field-6 continuous-water limit with WaterDevice's 0–120 minute range and the unit-code-2 field-7 cutoff with WaterDevice's 0–10.00 m³/h range (raw 0–1000).
+- Restore release-history accuracy: changes merged after the already-published `v2.6.1` tag are recorded under 2.6.2 rather than retroactively changing the 2.6.1 release notes.
+
+### Changed
+- Preserve raw enum codes as entity attributes while exposing stable enum state keys and localized state labels.
+- Strengthen the release path so the tagged source runs the same field-surface checks, unit tests and Python compilation expected by the normal offline audit before creating an asset.
+- Clarify publishing documentation so the web workflow is described accurately and release/version bumps are required before publishing new code.
+
+### Added
+- Read-only diagnostic coverage for previously omitted native fields 2, 3, 13, 14, 24, 25 and 48; field 25 is enabled by default as the native resin-maintenance regeneration threshold.
+- Recovered advanced-setting documentation in English, Catalan and Spanish, including exact enum maps and WaterDevice numeric ranges.
+- Regression coverage that requires recovered enums to remain Home Assistant enum entities and requires complete EN/ES/CA state translations.
+- Field-surface audit coverage ensuring every readable F79D field is either directly exposed or explicitly represented semantically.
+
+### Notes
+- Field 25 (`regenerationAlarmNumber`) is a maintenance reminder threshold, not the number of regenerations already performed.
+- No new mechanical write capability is enabled in this release.
+
 ## [2.6.1] - 2026-09-12
 
 ### Fixed
@@ -9,8 +31,6 @@ All notable changes to this project are documented here.
 - Keep vacation information read-only and preserve the derived `off` / `preparing` / `active` status without guessing an unverified mechanical sequence.
 - Replace the incorrectly reused square branding image with a properly padded 256×256 icon, exact 2× icon, landscape logo and exact 2× logo, plus matching dark variants.
 - Clarify controller water statistics so field 39 is not presented as the vendor application's current-week/history total and field 41 is not treated as a cumulative meter.
-- Expose recovered fields 2 (`language`), 3 (`deviceTimeScheme`), 24 (`outRelayMode`) and 48 (`absorbSaltMode`) as semantic Home Assistant enums instead of raw integers.
-- Align the field-6 continuous-water limit with WaterDevice's 0–120 minute range and the unit-code-2 field-7 cutoff with WaterDevice's 0–10.00 m³/h range (raw 0–1000).
 
 ### Changed
 - Rename field 39 to **Controller weekly average consumption** / equivalent CA/ES wording while keeping it without a Home Assistant `state_class`.
@@ -19,15 +39,11 @@ All notable changes to this project are documented here.
 - Preserve `dailyWaterConsumption` as `TOTAL_INCREASING`; real controller history confirms a within-day cumulative counter that resets at the day boundary.
 - Clean the obsolete v2.6.0 vacation switch from the entity registry on reload/upgrade.
 - Strengthen publication policy: a field being writable in the recovered legacy codec is no longer sufficient to expose a Home Assistant control without current-hardware physical read-back evidence.
-- Preserve raw enum codes as entity attributes while exposing stable enum state keys and localized state labels.
 
 ### Added
 - Comprehensive WaterDevice/F79D evidence audit in English, Catalan and Spanish.
 - Regression tests for daily-counter resets, weekly/cycle quantity semantics, salt semantics, read-only vacation policy and brand image geometry.
 - Offline audit checks for withdrawn vacation control, stale translation keys, proper icon/logo dimensions and distinct square/landscape artwork.
-- Read-only diagnostic coverage for previously omitted native fields 2, 3, 13, 14, 24, 25 and 48; field 25 is enabled by default as the native resin-maintenance regeneration threshold.
-- Recovered advanced-setting documentation in English, Catalan and Spanish, including exact enum maps and WaterDevice numeric ranges.
-- Regression coverage that requires recovered enums to remain Home Assistant enum entities and requires complete EN/ES/CA state translations.
 
 ### Migration notes
 - Home Assistant may offer to delete obsolete long-term statistics previously created for **Weekly average consumption** and **Periodic capacity**. This is expected after correcting their `state_class`; deleting those obsolete statistics does not remove the entities or normal recorder history.
