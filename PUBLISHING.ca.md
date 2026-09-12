@@ -17,8 +17,9 @@ Després verifica:
 ```bash
 python scripts/publication_check.py
 python scripts/audit.py
+python scripts/field_surface_audit.py
 python -m pytest -q
-python -m compileall -q custom_components/ypsilon_local scripts
+python -m compileall -q custom_components/ypsilon_local scripts tests
 ```
 
 ## 2. Requisits del repositori
@@ -29,12 +30,16 @@ El repositori inclou validació HACS, hassfest, auditoria offline de protocol/ar
 
 ## 3. Publicar una GitHub Release des de la web
 
-1. Fusiona el bump de versió i les release notes a `main` només quan HACS, hassfest i l'auditoria offline estiguin en verd.
-2. Obre GitHub **Actions** → **Publish GitHub release**.
-3. Prem **Run workflow** i comprova que la branca sigui `main`.
-4. Executa el workflow.
+1. Tria una versió semàntica **nova i no utilitzada**. No reutilitzis mai una versió que ja tingui una GitHub Release, encara que `main` contingui codi posterior.
+2. Actualitza `manifest.json`, `CHANGELOG.md` i `info.md` amb la mateixa versió.
+3. Fusiona aquests canvis de release a `main` només quan HACS, hassfest i l'auditoria offline estiguin en verd.
+4. Obre GitHub **Actions** → **Publish GitHub release**.
+5. Prem **Run workflow** i comprova que la branca sigui `main`.
+6. Executa el workflow.
 
-El workflow llegeix la versió de `custom_components/ypsilon_local/manifest.json`, torna a validar el codi, crea el tag `v<versió>` sobre el commit exacte de `main`, construeix el ZIP i crea la GitHub Release.
+El workflow web llegeix la versió de `custom_components/ypsilon_local/manifest.json`, executa publication check, auditoria, field-surface audit, tests i compilació, rebutja una GitHub Release existent, crea o recupera el tag anotat `v<versió>`, fa checkout exactament d'aquell tag, torna a validar el codi etiquetat, construeix el ZIP i crea la GitHub Release.
+
+Un tag pujat manualment activa el job de tags, que aplica la mateixa validació. Un tag creat pel mateix workflow amb `GITHUB_TOKEN` no necessita un segon workflow: el job web finalitza la release després de validar el tag.
 
 ### Alternativa amb Git
 
@@ -58,11 +63,12 @@ El projecte té una sol·licitud oberta a `hacs/default#10717`. El manteniment n
 
 Per a cada release:
 
-1. Actualitza la versió de `manifest.json`.
-2. Actualitza `CHANGELOG.md` i `info.md`.
-3. Executa auditoria, publication check, pytest i compileall.
+1. Confirma que la versió prevista **no** existeixi ja com a GitHub Release.
+2. Actualitza conjuntament `manifest.json`, `CHANGELOG.md` i `info.md`.
+3. Executa publication check, audit, field-surface audit, pytest i compileall.
 4. Fusiona només amb HACS/hassfest/audit en verd.
-5. Publica preferentment des d'Actions a `main`.
-6. Verifica l'asset resultant i els checks de `main`.
+5. Publica preferentment des d'Actions a `main`; alternativament puja exactament `v<versió del manifest>`.
+6. Verifica el tag, l'asset resultant i els checks de `main`.
+7. No moguis ni recreïs mai un tag d'una release ja publicada per incorporar codi posterior: publica una nova versió patch.
 
 No pugis mai APK del fabricant, firmware, binaris/scripts propietaris, credencials, claus privades/d'aparellament ni captures sense sanejar.
