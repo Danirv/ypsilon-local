@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented here.
 
+## [2.6.3] - 2026-09-13
+
+### Fixed
+- Restore F79D field 7 (`flowRateOff`) to **16-bit big-endian** read/write encoding on the tested Ypsilon G6. Physical read-back returns wire bytes `03 E8` while the vendor application displays `10.00 m³/h`; interpreting those bytes as BE gives raw 1000, while the regressed LE path produced raw 59395 / `593.95 m³/h` in Home Assistant.
+- Encode a 2.00 m³/h cutoff as raw 200 / bytes `00 C8`. The 2.6.x LE regression emitted `C8 00`; the controller ACKed transport but did not adopt the requested value, and strict fresh read-back correctly rejected the write.
+- Restore `HARDWARE_WRITE_VERIFIED` evidence for field 7. Earlier BE builds had already completed physical write/read-back verification, and the current hardware observations independently confirm the same wire order.
+
+### Changed
+- Keep the field-7 Home Assistant control constrained to the physically calibrated unit-code-2 range `0.00–10.00 m³/h` (raw `0–1000`).
+- Document the physical-device evidence as authoritative where it conflicts with the recovered legacy-app interpretation.
+- Add/restore inline codec documentation so the F79D field catalogue and codec preserve the recovered protocol knowledge next to the implementation.
+
+### Added
+- Regression coverage for `03 E8 -> 1000`, the historical LE misdecode `03 E8 -> 59395`, and `2.00 m³/h -> 00 C8` write encoding.
+- Audit coverage requiring field 7 to remain BE and hardware-write verified while fields 34 and 49 remain conservatively unverified.
+
+### Notes
+- The strict `SET -> fresh GET -> reconciliation` mechanism behaved as designed during the failed LE write: a transport ACK was not accepted as proof of physical state change.
+- Field 52 remains intentionally outside the normal 1..51 state block because the Ypsilon composition layer refreshes and caches that slow-changing service interval separately.
+- English, Catalan and Spanish entity translations were reviewed; no translation-key or user-facing label change is required for this wire-codec correction.
+
 ## [2.6.2] - 2026-09-12
 
 ### Fixed
