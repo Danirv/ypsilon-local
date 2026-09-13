@@ -59,6 +59,10 @@ HW_WRITE = (
     Evidence.DEVICE_STATE_OBSERVED,
     Evidence.HARDWARE_WRITE_VERIFIED,
 )
+DEVICE_HW_WRITE = (
+    Evidence.DEVICE_STATE_OBSERVED,
+    Evidence.HARDWARE_WRITE_VERIFIED,
+)
 SALT_HW_CLOUD_WRITE = (
     Evidence.LEGACY_APP_CODEC,
     Evidence.DEVICE_STATE_OBSERVED,
@@ -82,7 +86,9 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     # 10.00 m³/h, proving BE 0x03E8 == 1000 hundredths. Earlier project builds
     # using BE also completed physical write/read-back verification successfully;
     # the later LE regression was transport-ACKed but failed fresh read-back.
-    FieldSpec(7, "flowRateOff", FieldCodec.U16_BE, FieldCodec.U16_BE, evidence=HW_WRITE,
+    # Deliberately omit LEGACY_APP_CODEC from the evidence tuple because the
+    # recovered application path disagrees specifically on this field's byte order.
+    FieldSpec(7, "flowRateOff", FieldCodec.U16_BE, FieldCodec.U16_BE, evidence=DEVICE_HW_WRITE,
               notes="Hundredths of selected flow unit. Tested G6 wire bytes 03 E8 decode as BE raw 1000 = 10.00 m³/h; BE local writes were hardware-verified. WaterDevice caps unit-code-2 display at 10.00 m³/h."),
     FieldSpec(8, "waterVolumeUnit", evidence=OBSERVED),
     FieldSpec(9, "workPattern", write_codec=FieldCodec.U8, evidence=OBSERVED,
