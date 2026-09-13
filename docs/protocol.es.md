@@ -13,23 +13,25 @@ El paquete `runxin/` no depende de Home Assistant ni de BroadLink. `transport/br
 
 ## Trama y códecs F79D
 
-El controlador probado utiliza una trama exterior `5A 5C ... A5` con una trama interior `DF FD ... DE`. Ambas capas llevan checksum aditivo de 8 bits.
-
-Opcodes observados:
-
-- `0x09` — consulta de campos;
-- `0x19` — control/escritura;
-- respuestas `0xC9` y `0xD9` respectivamente.
+El controlador probado utiliza una trama exterior `5A 5C ... A5` con una trama interior `DF FD ... DE`, ambas con checksum aditivo de 8 bits. Los opcodes observados son `0x09` para consulta y `0x19` para control/escritura; las respuestas son `0xC9` y `0xD9`.
 
 Cada campo viaja como `[field_id, byte_1, byte_2]`. No existe una endianidad global: `runxin/fields.py` es la autoridad por campo.
 
-El códec WaterDevice confirma:
+En el Ypsilon G6 físico probado:
 
-- campo 7 (`flowRateOff`) — `u16_le`;
-- campo 11 (`flowRate`) — `u16_be`, porque la app invierte explícitamente este campo;
+- campo 7 (`flowRateOff`) — `u16_be` en lectura y escritura;
+- campo 11 (`flowRate`) — `u16_be`;
+- campos 12, 25, 47 y 52 — `u16_le`;
 - los volúmenes 35/37/39/41 dependen de `waterVolumeUnit`.
 
-Véase [`f79d.es.md`](f79d.es.md).
+El campo 7 conserva documentada una discrepancia con el camino recuperado de WaterDevice, que parecía usar un helper LE. La evidencia física es concluyente:
+
+```text
+03 E8 -> BE 1000 -> 10,00 m³/h
+03 E8 -> LE 59395 -> 593,95 m³/h
+```
+
+La app oficial mostraba 10,00 m³/h mientras la regresión LE de Ypsilon 2.6.2 mostraba 593,95 m³/h. Una escritura de 2,00 m³/h es raw 200 y debe enviarse como `00 C8`; la regresión LE enviaba `C8 00`, recibía ACK de transporte pero fallaba el read-back físico. Versiones anteriores con BE ya habían pasado SET/read-back real, por lo que el campo 7 vuelve a ser `HARDWARE_WRITE_VERIFIED`.
 
 ## Modelo de evidencia
 
@@ -39,13 +41,13 @@ Véase [`f79d.es.md`](f79d.es.md).
 - `cloud_write_observed` — cambio observado por la vía del fabricante;
 - `inferred` — interpretación todavía no confirmada directamente.
 
-Un ACK no es evidencia física. Conocer el códec y demostrar que el firmware actual ejecuta la acción son hechos distintos.
+Un ACK no es evidencia física. Cuando una interpretación de la app entra en conflicto con bytes/read-back independientes del controlador, prevalece la evidencia física para el hardware probado y la discrepancia se documenta.
 
-El campo 7 perdió la antigua marca `HW` porque la implementación anterior podía autoconfirmar una endianidad incorrecta. El campo 49 muestra el caso complementario: el códec antiguo puede serializar vacaciones, pero en el G6 probado el SET local directo recibió ACK y las lecturas frescas siguieron sin cambiar. Ese método no es un control verificado.
+El campo 49 es el ejemplo negativo complementario: el códec antiguo puede serializar vacaciones, pero en el G6 probado el SET local directo recibió ACK y las lecturas frescas siguieron sin cambiar. Ese método no es un control verificado.
 
 ## Semántica de las escrituras
 
-Las lecturas pueden reintentarse de forma limitada porque son idempotentes. Las escrituras no se duplican a ciegas:
+Las lecturas pueden reintentarse porque son idempotentes. Las escrituras no se duplican a ciegas:
 
 1. enviar SET una sola vez;
 2. si la respuesta es ambigua, no reenviar;
@@ -53,33 +55,21 @@ Las lecturas pueden reintentarse de forma limitada porque son idempotentes. Las 
 4. reconciliar el estado;
 5. confirmar únicamente cuando el valor real coincide.
 
-Las acciones mecánicas también deben confirmar la transición física esperada.
+La regresión LE del campo 7 demuestra que esta arquitectura funciona: el ACK no se convirtió en un falso éxito porque el read-back no coincidía.
 
 ## Superficie Home Assistant
 
-Que el códec sepa serializar un campo no implica que sea seguro exponerlo. `write_fields` queda limitado a configuraciones reversibles y valida rangos/unidades.
-
-Los campos mecánicos 34 y 49 quedan fuera del servicio genérico. El campo 34 solo se utiliza en operaciones específicas conocidas. **El campo 49 no tiene escritor en Home Assistant 2.6.1**: se conserva la lectura, pero se retira el método directo que falló en hardware en lugar de inventar una secuencia alternativa.
-
-## Vacaciones
-
-La UI WaterDevice antigua usa el campo 49 como flag y el 34 como modo físico. Entra desde el modo 0, llega al estado estable 8 y revela la progresión antigua `0 -> 3 -> 7 -> 2 -> 8`.
-
-Ypsilon mantiene un estado semántico solo de lectura sin ocultar `station`:
-
-- `off`: flag falso;
-- `preparing`: flag verdadero y station distinto de 8;
-- `active`: flag verdadero y station 8.
-
-En el G6 actual probado, sin embargo, `field49=1` recibió ACK sin modificar el read-back. La app actual del fabricante también dispone de operaciones dedicadas de entrada/salida de vacaciones. Por tanto no se expone ninguna acción local de vacaciones hasta verificar físicamente una secuencia correcta.
+`write_fields` queda limitado a configuraciones reversibles y valida rangos/unidades. Los campos mecánicos 34 y 49 quedan fuera del servicio genérico. El campo 49 continúa solo en lectura hasta que una secuencia local correcta se verifique físicamente.
 
 ## Agua, estadísticas y sal
 
-El histórico real confirma que el campo 37 es un contador acumulado dentro del día que se reinicia al cambiar de día; por eso usa `TOTAL_INCREASING`.
-
-El campo 39 es una media semanal del controlador y no es lo mismo que las barras históricas semanales de la app. El campo 41 es capacidad de tratamiento por ciclo, no un contador acumulativo. Ninguno declara `state_class`.
+El histórico real confirma que el campo 37 es un contador acumulado dentro del día que se reinicia al cambiar de día; por eso usa `TOTAL_INCREASING`. El campo 39 es una media semanal del controlador y no es lo mismo que las barras históricas semanales de la app. El campo 41 es capacidad de tratamiento por ciclo, no un contador acumulativo. Ninguno declara `state_class`.
 
 El campo 43 es una cantidad de sal añadida/registrada por el controlador, no un nivel físico de sal.
+
+## Campo 52
+
+El bloque normal sigue siendo 1..51. El campo 52 se consulta y cachea por separado porque es un intervalo de servicio que cambia lentamente. Es política de polling de la capa Ypsilon, no una limitación del códec F79D.
 
 ## Transporte BL3372
 
