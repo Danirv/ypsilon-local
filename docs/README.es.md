@@ -10,15 +10,22 @@ Integración local para descalcificadores compatibles con **Runxin F79D + BroadL
 - Diagnósticos para fases de lavado, disolución de sal, pausa 1, errores, comunicación y mantenimiento.
 - Traducciones CA/ES/EN y branding local con icono cuadrado y logotipo horizontal independientes.
 
+## Cambio principal de la 2.6.3
+
+El campo 7 (`flowRateOff`, umbral de cierre por caudal) vuelve a utilizar **u16 big-endian** en lectura y escritura y recupera `HARDWARE_WRITE_VERIFIED`.
+
+La prueba física es directa: el controlador devuelve `03 E8` mientras la app oficial muestra 10,00 m³/h. En BE es raw 1000; en LE se convierte erróneamente en 59395 y Home Assistant mostraba 593,95 m³/h. Para escribir 2,00 m³/h, raw 200 debe enviarse como `00 C8`. La regresión LE enviaba `C8 00`, recibía ACK pero el read-back físico no confirmaba el cambio, y la verificación estricta de Ypsilon lo rechazaba correctamente.
+
+Versiones anteriores del proyecto con BE ya habían verificado físicamente SET/read-back para este campo. La superficie HA se mantiene limitada a 0–10,00 m³/h en la familia de unidad 2 validada.
+
 ## Cambios principales de la 2.6.1
 
 - Vacaciones: el campo 49 se sigue leyendo y el sensor `desactivado / preparando / activo` se mantiene, pero no se expone ninguna escritura hasta conocer y verificar físicamente la acción local del firmware actual.
 - Consumo diario: se mantiene como contador `TOTAL_INCREASING` que crece durante el día y se reinicia al cambio de día.
-- Campo 39: pasa a llamarse **Consumo semanal medio del controlador**. No es el total semanal de las barras históricas de la app oficial.
+- Campo 39: **Consumo semanal medio del controlador**. No es el total semanal de las barras históricas de la app oficial.
 - Campo 41: **Capacidad de tratamiento por ciclo**, no un contador de consumo.
-- Campo 43: **Cantidad de sal añadida**, un valor de registro/configuración en kg; no es el nivel de sal restante y no se decrementa automáticamente después de una regeneración.
-- Branding regenerado: `icon` 256×256 con márgenes seguros, `icon@2x`, logo horizontal y variantes 2x/dark.
-- Tests y `scripts/audit.py` amplían las regresiones de vacaciones, estadísticas de agua, sal y geometría del branding.
+- Campo 43: **Cantidad de sal añadida**, un valor de registro/configuración en kg; no es el nivel de sal restante.
+- Branding con icono cuadrado, logo horizontal y variantes 2x/dark.
 
 ## Estadísticas antiguas de Home Assistant
 

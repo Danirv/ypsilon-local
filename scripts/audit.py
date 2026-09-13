@@ -69,20 +69,21 @@ def protocol_checks() -> list[str]:
 
     req(p.encode_field(43, 50) == [43, 50, 0], "field43 encoding")
     req(p.encode_field(47, 400) == [47, 0x90, 0x01], "field47 encoding")
-    req(p.encode_field(7, 200) == [7, 0xC8, 0], "field7 must be little-endian")
+    req(p.encode_field(7, 200) == [7, 0x00, 0xC8], "field7 must be big-endian")
     req(p.encode_field(10, (2, 30)) == [10, 2, 30], "field10 encoding")
-    # Field 49 remains encodable at the reusable codec layer because that is
-    # what the recovered WaterDevice codec defines; HA policy deliberately does
-    # not expose it as a write after current-hardware read-back disproved it.
     req(p.encode_field(49, 1) == [49, 1, 0], "field49 legacy codec encoding")
-    req(p.WRITE_U16 == {7, 25, 47, 52}, "WRITE_U16 set")
-    req(p.WRITE_U16_BE == set(), "WRITE_U16_BE should be empty for writable fields")
-    req(p.BE16_FIELDS == {11}, "only field11 should read as BE16")
-    req({7, 12, 25, 47, 52}.issubset(p.LE16_FIELDS), "LE16 field set")
+    req(p.WRITE_U16 == {25, 47, 52}, "WRITE_U16 set")
+    req(p.WRITE_U16_BE == {7}, "WRITE_U16_BE field7")
+    req(p.BE16_FIELDS == {7, 11}, "fields 7 and 11 must read as BE16")
+    req({12, 25, 47, 52}.issubset(p.LE16_FIELDS), "LE16 field set")
+    req(7 not in p.LE16_FIELDS, "field7 must not remain in LE16 set")
 
-    d = p.decode_tlvs({7: (0xE8, 0x03), 11: (0x03, 0xE8)})
-    req(d.get("flowRateOff") == 1000, "field7 LE decode")
+    d = p.decode_tlvs({7: (0x03, 0xE8), 11: (0x03, 0xE8)})
+    req(d.get("flowRateOff") == 1000, "field7 BE decode")
+    req(d.get("_raw_flowRateOff") == 1000, "field7 raw BE decode")
     req(d.get("flowRate") == 1000, "field11 BE decode")
+    req((0x03 | (0xE8 << 8)) == 59395, "field7 historical LE regression vector")
+    req(((0x03 << 8) | 0xE8) == 1000, "field7 physical BE regression vector")
 
     req(
         p.decode_tlvs({35: (0, 1), 36: (59, 2)}).get("residualWaterProduction") is None,
@@ -97,12 +98,15 @@ def protocol_checks() -> list[str]:
 
     evidence = fields_mod.Evidence
     by_id = fields_mod.F79D_FIELDS_BY_ID
-    for field in (4, 6, 10, 43, 47):
+    for field in (4, 6, 7, 10, 43, 47):
         req(evidence.HARDWARE_WRITE_VERIFIED in by_id[field].evidence, f"field{field} HW evidence")
-    for field in (7, 34, 49):
+    for field in (34, 49):
         req(evidence.HARDWARE_WRITE_VERIFIED not in by_id[field].evidence, f"field{field} must stay pending HW")
+    req("03 E8" in (by_id[7].notes or ""), "field7 physical wire evidence note")
     req("not a measured remaining salt level" in (by_id[43].notes or ""), "field43 salt semantics")
     req("not the vendor app's week-history total" in (by_id[39].notes or ""), "field39 weekly semantics")
+    req(p.STATE_FIELDS == list(range(1, 52)), "normal state block must remain fields 1..51")
+    req(52 not in p.STATE_FIELDS, "field52 must remain on separate slow refresh policy")
 
     req(semantics.vacation_status(False, 0) == "off", "vacation off semantics")
     req(semantics.vacation_status(True, 3) == "preparing", "vacation preparing semantics")
@@ -224,7 +228,7 @@ def repository_checks() -> list[str]:
     sensors = read("sensor.py")
     services = read("services.py")
     if (HERE / "switch.py").exists():
-        errors.append("v2.6.1 must not expose a vacation switch platform")
+        errors.append("integration must not expose the withdrawn vacation switch platform")
     if "Platform.SWITCH" in init:
         errors.append("switch platform still registered")
     if "async_set_vacation_mode" in coordinator or "FIELD_HOLIDAY_MODE" in coordinator:

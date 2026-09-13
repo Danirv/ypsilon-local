@@ -16,6 +16,8 @@ from enum import Enum
 
 
 class FieldCodec(str, Enum):
+    """Wire-level encoding used to read or write one F79D field."""
+
     U8 = "u8"
     U16_LE = "u16_le"
     U16_BE = "u16_be"
@@ -28,6 +30,8 @@ class FieldCodec(str, Enum):
 
 
 class Evidence(str, Enum):
+    """Origin and confidence category for a recovered field definition."""
+
     LEGACY_APP_CODEC = "legacy_app_codec"
     DEVICE_STATE_OBSERVED = "device_state_observed"
     HARDWARE_WRITE_VERIFIED = "hardware_write_verified"
@@ -37,6 +41,8 @@ class Evidence(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class FieldSpec:
+    """Describe one F79D field, its codecs, evidence, unit and research notes."""
+
     id: int
     name: str
     read_codec: FieldCodec = FieldCodec.U8
@@ -50,6 +56,10 @@ APP = (Evidence.LEGACY_APP_CODEC,)
 OBSERVED = (Evidence.LEGACY_APP_CODEC, Evidence.DEVICE_STATE_OBSERVED)
 HW_WRITE = (
     Evidence.LEGACY_APP_CODEC,
+    Evidence.DEVICE_STATE_OBSERVED,
+    Evidence.HARDWARE_WRITE_VERIFIED,
+)
+DEVICE_HW_WRITE = (
     Evidence.DEVICE_STATE_OBSERVED,
     Evidence.HARDWARE_WRITE_VERIFIED,
 )
@@ -71,18 +81,19 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(5, "washInitiationTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM),
     FieldSpec(6, "continuousWaterTime", write_codec=FieldCodec.U8, evidence=HW_WRITE, unit_hint="min",
               notes="WaterDevice settings range 0..120 min."),
-    # Legacy WaterDevice serialises field 7 little-endian. The previous project
-    # implementation used BE in both directions and therefore could self-confirm
-    # the wrong byte order. Keep hardware-write evidence withdrawn until LE is
-    # exercised again end-to-end on the physical controller.
-    FieldSpec(7, "flowRateOff", FieldCodec.U16_LE, FieldCodec.U16_LE, evidence=OBSERVED,
-              notes="Hundredths of selected flow unit; legacy codec is LE. In unit code 2 WaterDevice caps display at 10.00 m³/h (raw 1000)."),
+    # Physical Ypsilon G6 evidence overrides the legacy-app interpretation for
+    # field 7. The controller returns wire bytes 03 E8 while WaterDevice displays
+    # 10.00 m³/h, proving BE 0x03E8 == 1000 hundredths. Earlier project builds
+    # using BE also completed physical write/read-back verification successfully;
+    # the later LE regression was transport-ACKed but failed fresh read-back.
+    # Deliberately omit LEGACY_APP_CODEC from the evidence tuple because the
+    # recovered application path disagrees specifically on this field's byte order.
+    FieldSpec(7, "flowRateOff", FieldCodec.U16_BE, FieldCodec.U16_BE, evidence=DEVICE_HW_WRITE,
+              notes="Hundredths of selected flow unit. Tested G6 wire bytes 03 E8 decode as BE raw 1000 = 10.00 m³/h; BE local writes were hardware-verified. WaterDevice caps unit-code-2 display at 10.00 m³/h."),
     FieldSpec(8, "waterVolumeUnit", evidence=OBSERVED),
     FieldSpec(9, "workPattern", write_codec=FieldCodec.U8, evidence=OBSERVED,
               notes="Legacy WaterDevice enum codes 0..9; exposed read-only by HA."),
     FieldSpec(10, "regeneratingTriggerTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM, evidence=HW_WRITE),
-    # Field 11 is explicitly byte-reversed by the legacy app before the generic
-    # little-endian integer decoder, making the wire representation big-endian.
     FieldSpec(11, "flowRate", FieldCodec.U16_BE, evidence=OBSERVED,
               notes="Hundredths of the selected flow unit; raw counter is preserved."),
     FieldSpec(12, "systemCloseReason", FieldCodec.U16_LE),
@@ -133,9 +144,6 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(47, "rawWaterHardness", FieldCodec.U16_LE, FieldCodec.U16_LE, evidence=HW_WRITE, unit_hint="mg/L"),
     FieldSpec(48, "absorbSaltMode", write_codec=FieldCodec.U8, evidence=OBSERVED,
               notes="WaterDevice enum: 0=reverse brine draw (逆吸), 1=forward brine draw (顺吸)."),
-    # Preserve the legacy codec's ability to encode field 49 for protocol
-    # research, but do not mark it as a verified write. On the tested Ypsilon G6
-    # a direct local write was transport-ACKed yet fresh read-back stayed false.
     FieldSpec(49, "vacationPattern", FieldCodec.BOOL, FieldCodec.U8, evidence=OBSERVED,
               notes="Readable vacation flag. Legacy codec can encode 1/0, but direct local writes are not hardware-verified and HA exposes this read-only."),
     FieldSpec(50, "saltDissolutionRemainingTime", evidence=OBSERVED, unit_hint="min"),

@@ -11,61 +11,56 @@ Les etiquetes de `runxin/fields.py` signifiquen:
 - `HARDWARE_WRITE_VERIFIED`: una escriptura local ha estat confirmada amb una lectura fresca posterior;
 - `CLOUD_WRITE_OBSERVED`: el mateix ajust també s'ha observat canviant per la via del fabricant.
 
-Un ACK de transport, per si sol, **no** és una verificació física.
+Un ACK de transport, per si sol, **no** és una verificació física. Quan la interpretació del còdec antic entra en conflicte amb el controlador real, preval l'evidència física del maquinari provat.
 
 ## Còdec F79D
 
 El perfil recuperat utilitza opcode de consulta `0x09` i control `0x19`. Resultats rellevants:
 
-- camp 7 `flowRateOff`: 16 bits little-endian;
-- camp 11 `flowRate`: big-endian al cable perquè el codi antic inverteix explícitament el parell;
+- camp 7 `flowRateOff`: **16 bits big-endian al Ypsilon G6 provat**, verificat amb escriptura/read-back físics;
+- camp 11 `flowRate`: 16 bits big-endian al cable;
 - camp 33: dos flags de recordatori;
 - camps 35/37/39/41: valors de volum de tres bytes repartits en dos TLV i dependents de `waterVolumeUnit`;
 - camps 50/51: minuts restants de dissolució de sal i pausa 1;
-- camp 52: dies de servei del material filtrant.
+- camp 52: interval de servei del material filtrant, consultat per separat per la integració.
 
-Per unitats 0/1 els volums es reconstrueixen com un enter LE de 24 bits. Per unitat 2 s'utilitza empaquetat decimal base-100 i la magnitud en m³ es mostra dividida per 100. Si falta la unitat o el TLV de continuació, la integració retorna `None` en lloc d'inventar un valor.
+### Camp 7: discrepància del còdec antic resolta pel maquinari
 
-## Aigua i estadístiques
+El camí recuperat de WaterDevice semblava tractar el camp 7 amb un helper little-endian. El G6 físic ho contradiu de manera concloent:
 
-**37–38 Consum diari** és el comptador acumulat del dia. Les dades reals del G6 mostren que puja durant el dia i es reinicia al canvi de dia. Per això Home Assistant utilitza `TOTAL_INCREASING`: un descens per reinici inicia un nou cicle de comptador i no representa consum negatiu.
+```text
+bytes al fil: 03 E8
+big-endian:    0x03E8 = 1000 -> 10,00 m³/h
+little-endian: 0xE803 = 59395 -> 593,95 m³/h
+```
 
-**39–40 Consum setmanal mitjà del controlador** correspon a `averageUsedWater` del còdec antic. No és el total de la setmana que mostra el gràfic històric de l'app oficial. Aquest gràfic utilitza una via estadística separada. El sensor no té `state_class`.
+L'app oficial mostrava 10,00 m³/h mentre Ypsilon 2.6.2, després de canviar el camp 7 a LE, mostrava 593,95 m³/h. Per tant aquest controlador és BE.
 
-**41–42 Capacitat de tractament per cicle** és una magnitud de capacitat/configuració del controlador, no un comptador acumulatiu. Tampoc té `state_class`.
+La via d'escriptura ho corrobora independentment. Una petició de 2,00 m³/h és raw 200 (`0x00C8`) i s'ha d'enviar com `00 C8`. La regressió LE enviava `C8 00`; el controlador retornava ACK de transport/protocol però les lectures fresques no confirmaven el valor demanat. La reconciliació estricta de Ypsilon mostrava correctament `Write ACKed but not confirmed`.
 
-Versions anteriors van crear estadístiques de llarg termini per als camps 39 i 41. Després de l'actualització, Home Assistant pot oferir eliminar aquestes estadístiques antigues. És una migració esperada i no elimina l'entitat ni l'històric normal.
+Versions anteriors del projecte amb BE ja havien completat correctament el SET/read-back local del camp 7. Per això es restaura `HARDWARE_WRITE_VERIFIED` i es conserva documentada la discrepància amb el còdec antic.
+
+## Volums, aigua i estadístiques
+
+Per unitats 0/1 els volums 35/37/39/41 es reconstrueixen com un enter LE de 24 bits. Per unitat 2 s'utilitza empaquetat decimal base-100 i la magnitud en m³ es mostra dividida per 100. Si falta la unitat o el TLV de continuació, la integració retorna `None`.
+
+**37–38 Consum diari** és el comptador acumulat del dia i les dades reals confirmen que es reinicia al canvi de dia; Home Assistant utilitza `TOTAL_INCREASING`.
+
+**39–40 Consum setmanal mitjà del controlador** no és el total setmanal de les barres històriques de l'app oficial i no té `state_class`.
+
+**41–42 Capacitat de tractament per cicle** és una magnitud de capacitat/configuració, no un comptador acumulatiu, i tampoc té `state_class`.
 
 ## Sal
 
-El camp 43 `addSalt` és una **quantitat de sal afegida**, de 0 a 100 kg, que l'app antiga permet configurar. L'escriptura local ha estat verificada físicament i també s'ha observat el canvi per la via del fabricant.
+El camp 43 `addSalt` és una **quantitat de sal afegida** de 0 a 100 kg. L'escriptura local ha estat verificada físicament i també s'ha observat el canvi per la via del fabricant. No és un sensor físic de sal restant i Ypsilon Local no el decrementa després d'una regeneració.
 
-No és un sensor físic de sal restant i Ypsilon Local no el decrementa després d'una regeneració. Els avisos físics de sal són separats:
+## Vacances
 
-- camp 31: concentració de salmorra baixa;
-- camp 33: recordatori de comprovar/afegir sal.
+La UI antiga modela les vacances amb el camp 49 i la progressió `0 -> 3 -> 7 -> 2 -> 8`. Al G6 provat, una escriptura local directa del camp 49 va rebre ACK però les lectures fresques van continuar retornant `vacationPattern=false`. Per tant el camp es continua llegint i codificant per a recerca/interoperabilitat, però no és `HARDWARE_WRITE_VERIFIED` i no s'exposa cap switch d'escriptura a Home Assistant.
 
-## Vacances: decisió de seguretat de la 2.6.1
+## Camp 52
 
-La UI antiga conté la semàntica següent:
-
-- entrada: `holidayMode=1` des de servei;
-- sortida: `holidayMode=0` quan s'ha arribat a l'estació 8;
-- progressió antiga: `0 -> 3 -> 7 -> 2 -> 8`;
-- durant la fase 2 en vacances, el progrés utilitza el 25% del temps normal de rentat lent.
-
-Això prova el comportament de la **UI/còdec antic**, però no que qualsevol firmware actual executi una escriptura local directa del camp 49.
-
-Al G6 provat, la 2.6.0 va enviar el camp 49, va rebre ACK, però les lectures fresques posteriors van continuar retornant `vacationPattern=false`. Per tant, a la 2.6.1:
-
-- el camp 49 es continua llegint;
-- el còdec conserva la seva codificació per a recerca/interoperabilitat;
-- no es marca com `HARDWARE_WRITE_VERIFIED`;
-- s'elimina el switch d'escriptura de vacances;
-- es manté el sensor d'estat de vacances només de lectura;
-- no s'envia cap seqüència mecànica deduïda o no verificada.
-
-L'app actual del fabricant també disposa d'operacions dedicades d'entrada/sortida de vacances, fet que reforça aquesta decisió conservadora.
+La consulta normal continua sent 1..51. El camp 52 es consulta i cacheja per separat perquè és un interval de servei que canvia lentament. És una política de polling de la integració, no una limitació del protocol.
 
 ## Regla de publicació
 

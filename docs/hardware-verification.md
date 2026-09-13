@@ -4,7 +4,7 @@
 
 A field is marked `HARDWARE_WRITE_VERIFIED` only after the local integration has proved the complete write/read-back path against a physical controller. A protocol ACK or a self-consistent codec is not enough.
 
-The v2.6.1 vacation-mode correction is an intentional example of this rule: field 49 is writable in the recovered legacy codec, but the tested current Ypsilon G6 ACKed the direct local write without changing fresh read-back state. Therefore Home Assistant exposes vacation state read-only.
+The v2.6.1 vacation-mode correction remains an intentional example of this rule: field 49 is writable in the recovered legacy codec, but the tested current Ypsilon G6 ACKed the direct local write without changing fresh read-back state. Therefore Home Assistant exposes vacation state read-only.
 
 ## Required sequence
 
@@ -42,15 +42,31 @@ Verified locally end-to-end:
 
 - field 4 — device clock / clock sync;
 - field 6 — continuous-flow limit;
+- **field 7 — flow shutoff threshold, 16-bit big-endian**;
 - field 10 — regeneration trigger time;
 - field 43 — added-salt bookkeeping value;
 - field 47 — raw-water hardness.
 
-Pending or requiring revalidation:
+Pending or deliberately unverified:
 
-- **field 7 — flow shutoff threshold:** WaterDevice proves the correct wire codec is little-endian. Versions before 2.6 used BE in both write and read paths, so their read-back could self-confirm the wrong byte order. The old `HW` label is withdrawn until the corrected LE path is exercised on the physical controller;
 - **field 34 — mechanical regeneration/state-machine writes:** only specifically observed/tested actions should be exposed; codec support alone is not sufficient to generalise all values;
-- **field 49 — vacation mode:** direct local `1/0` control is explicitly **not verified** on the tested current G6 and is not exposed by Home Assistant 2.6.1.
+- **field 49 — vacation mode:** direct local `1/0` control is explicitly **not verified** on the tested current G6 and remains absent from Home Assistant.
+
+## Field 7 / flow cutoff evidence
+
+The physical G6 resolves the field-7 byte order independently of the recovered legacy-app interpretation:
+
+```text
+wire bytes: 03 E8
+big-endian:    0x03E8 = 1000 -> 10.00 m³/h
+little-endian: 0xE803 = 59395 -> 593.95 m³/h
+```
+
+The vendor application showed 10.00 m³/h while Ypsilon 2.6.2, using the LE regression, displayed 593.95 m³/h. The same controller therefore proves that the actual field-7 wire value is BE.
+
+The write path provides a second independent check. A requested 2.00 m³/h corresponds to raw 200 (`0x00C8`) and therefore bytes `00 C8`. The regressed LE path sent `C8 00`; the transport/protocol layer ACKed the request, but repeated fresh reads did not adopt the requested value and the coordinator raised `Write ACKed but not confirmed`. That is the intended safety behavior.
+
+Earlier project builds using BE had already completed successful physical SET/read-back verification for field 7. Combined with the current independent wire/read-back observation, this restores `HARDWARE_WRITE_VERIFIED` for field 7. The recovered WaterDevice path that appeared LE is retained as conflicting interoperability evidence rather than being allowed to override the tested controller.
 
 ## Field 49 / vacation-mode failure evidence
 
@@ -63,28 +79,11 @@ The recovered legacy WaterDevice UI indicates this semantic model:
 - the legacy UI uses 25% of the normal slow-wash duration for the vacation brine-draw progress display;
 - exit is initiated from station 8.
 
-On the project's current physical G6, v2.6.0 then performed the critical hardware check:
+On the project's current physical G6, v2.6.0 performed the critical hardware check: baseline read showed `vacationPattern=false`, a direct local field-49 SET was sent, transport/protocol returned ACK, repeated independent local reads continued returning `false`, and verification timed out without physical confirmation.
 
-1. baseline read showed `vacationPattern=false` and service state;
-2. direct local field-49 SET was sent;
-3. transport/protocol layer returned ACK;
-4. repeated independent local reads continued returning `vacationPattern=false`;
-5. verification timed out without physical confirmation.
+This disproves the specific direct-write method as a user-facing control on that firmware. The current vendor application also contains dedicated vacation enter/exit operations rather than relying only on the generic control path, so Ypsilon must not guess a multi-field or mechanical replacement sequence.
 
-This disproves the assumption that a direct field-49 write is a working local vacation action on that tested firmware. The result is stronger than “pending”: the **specific direct-write method used in v2.6.0 is rejected as a user-facing control** until a different local sequence is discovered and physically verified.
-
-The current vendor application also contains dedicated vacation-enter/exit operations rather than relying only on the generic control path, so Ypsilon must not guess a multi-field or mechanical replacement sequence.
-
-Consequently v2.6.1 keeps:
-
-- field-49 read/decode support;
-- field-49 legacy encode support in the transport-neutral protocol layer for research/interoperability;
-- the read-only Vacation status semantic sensor;
-
-and removes:
-
-- the Home Assistant Vacation mode switch;
-- any coordinator method that directly writes field 49.
+Consequently Ypsilon keeps field-49 read/decode support, legacy encode support for research/interoperability, and the read-only Vacation status sensor, while omitting a writable Vacation switch.
 
 ## Water-counter/statistics evidence
 
@@ -95,6 +94,10 @@ The same evidence, together with vendor-app screenshots, confirms that field 39'
 ## Salt evidence
 
 Field 43 has full local SET/read-back verification and a cloud-side observed change. Its legacy label/behavior is “salt added” in kilograms. This verifies the configuration/bookkeeping field, not a physical salt-level sensor. The integration must not infer or decrement “salt remaining” from this field.
+
+## Field 52 polling note
+
+Field 52 is intentionally not part of the normal 1..51 state block. The Ypsilon composition layer reads and caches it separately because it is a slow-changing service interval. This is a polling optimisation and does not weaken its observed-state evidence.
 
 ## Generalisation rule
 

@@ -34,8 +34,8 @@ Los demás límites de escritura expuestos se mantienen:
 - campo 43 `saltAddition`: 0–100 kg;
 - campo 47 `rawWaterHardness`: 50–1500 mg/L.
 
-Estos rangos de la UI son independientes de la política de evidencia de escritura. El campo 7 continúa sin evidencia `HARDWARE_WRITE_VERIFIED` después de corregir el endianness hasta que vuelva a validarse físicamente en el hardware actual.
+Estos rangos de la UI son independientes de la política de evidencia de escritura. En el Ypsilon G6 probado, el campo 7 está `HARDWARE_WRITE_VERIFIED` con un valor de 16 bits **big-endian**. La lectura decisiva es `03 E8`, que corresponde a raw 1000 / 10,00 m³/h; versiones anteriores del proyecto con BE ya habían completado correctamente la escritura y el read-back locales. La regresión LE de la 2.6.x producía `593,95 m³/h` con esos mismos bytes y fallaba la confirmación estricta de escritura.
 
 ## Fuente de la evidencia
 
-Los mapeos y rangos anteriores proceden de la configuración y de los módulos de enums recuperados del JavaScript de la antigua WaterDevice. `tests/test_recovered_settings_semantics.py` los protege contra regresiones: un enum no puede volver silenciosamente a ser un sensor entero bruto y los estados traducidos deben permanecer completos en inglés, castellano y catalán.
+Los mapeos de enums y rangos de UI proceden de la configuración y de los módulos recuperados del JavaScript de la antigua WaterDevice. Para el orden de bytes del campo 7 prevalece la evidencia física del G6 cuando entra en conflicto con la interpretación del códec antiguo. `tests/test_recovered_settings_semantics.py`, `tests/test_f79d.py` y `scripts/audit.py` lo protegen contra regresiones; las traducciones siguen completas en inglés, castellano y catalán.

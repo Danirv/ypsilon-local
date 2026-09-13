@@ -76,9 +76,9 @@ class YpsilonNumber(YpsilonEntity, NumberEntity):
             return False
         if self.entity_description.key != "flow_rate_off":
             return True
-        # The legacy app's field-7 codec is now mirrored exactly (LE). Unit code
-        # 2 is the only flow-unit family calibrated on the project's hardware,
-        # so keep this control unavailable for uncalibrated unit families.
+        # Field 7 is physically calibrated on the tested G6 as BE hundredths.
+        # Unit code 2 is the only flow-unit family validated end-to-end, so keep
+        # this writable control unavailable for uncalibrated unit families.
         return bool(
             self.coordinator.data
             and self.coordinator.data.get("waterVolumeUnit") == SUPPORTED_FLOW_UNIT_CODE

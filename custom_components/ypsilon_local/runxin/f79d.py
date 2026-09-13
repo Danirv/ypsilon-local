@@ -17,6 +17,10 @@ from .framing import (
 )
 
 DEVICE_MODEL = 9
+# Field 52 intentionally remains outside the normal state block. The Ypsilon
+# integration refreshes it separately because it is a slow-changing service
+# interval; keeping that policy outside this reusable protocol layer avoids
+# coupling F79DClient to Home Assistant polling decisions.
 STATE_FIELDS = list(range(1, 52))
 
 FIELD_NAMES = {spec.id: spec.name for spec in F79D_FIELD_SPECS}
@@ -41,16 +45,19 @@ WRITE_TIME = WRITE_CLOCK | WRITE_DURATION
 
 
 def build_query(fields: list[int]) -> bytes:
+    """Build a read-only F79D query frame for the requested field ids."""
     return build_query_frame(fields)
 
 
 def build_write(field: int, low: int, high: int = 0) -> bytes:
+    """Build a one-field F79D control frame from already encoded wire bytes."""
     if not 0 <= field <= 0xFF or not 0 <= low <= 0xFF or not 0 <= high <= 0xFF:
         raise ValueError("values must fit in one byte")
     return build_control_frame([field, low, high])
 
 
 def _pair(value: Any, field: int, label: str) -> tuple[int, int]:
+    """Coerce a two-component semantic value and raise a field-specific error."""
     try:
         first, second = value
     except (TypeError, ValueError) as err:
@@ -59,6 +66,7 @@ def _pair(value: Any, field: int, label: str) -> tuple[int, int]:
 
 
 def encode_field(field: int, value: Any) -> list[int]:
+    """Encode one semantic field value as an F79D ``[id, byte1, byte2]`` triple."""
     spec = F79D_FIELDS_BY_ID.get(field)
     codec = spec.write_codec if spec is not None else None
     if codec is None:
@@ -93,10 +101,12 @@ def encode_field(field: int, value: Any) -> list[int]:
 
 
 def build_control(payload: list[int]) -> bytes:
+    """Wrap an already encoded control payload in an F79D write frame."""
     return build_control_frame(payload)
 
 
 def build_write_fields(values: dict[int, Any]) -> bytes:
+    """Encode several semantic field writes into one deterministic F79D frame."""
     payload: list[int] = []
     for field in sorted(values):
         payload += encode_field(field, values[field])
@@ -104,12 +114,14 @@ def build_write_fields(values: dict[int, Any]) -> bytes:
 
 
 def _clock(low: int, high: int) -> str | None:
+    """Decode hour/minute wire bytes as a Home Assistant-compatible time string."""
     if not (0 <= low <= 23 and 0 <= high <= 59):
         return None
     return f"{low:02d}:{high:02d}:00"
 
 
 def _duration(low: int, high: int) -> str:
+    """Decode minute/second wire bytes into an ``HH:MM:SS`` duration string."""
     total = low * 60 + high
     hours, remainder = divmod(total, 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -132,6 +144,7 @@ def _decode_volume_pair(
 
 
 def decode_tlvs(tlvs: dict[int, tuple[int, int]]) -> dict[str, Any]:
+    """Decode raw F79D TLV byte pairs into named semantic controller values."""
     decoded: dict[str, Any] = {}
     unit_code = tlvs.get(8, (None, None))[0]
     for field, (low, high) in tlvs.items():
@@ -168,6 +181,7 @@ def decode_tlvs(tlvs: dict[int, tuple[int, int]]) -> dict[str, Any]:
 
 
 def decode_frame(frame: bytes) -> dict[str, Any]:
+    """Validate/extract a complete F79D frame and decode its semantic values."""
     return decode_tlvs(extract_tlvs(frame))
 
 

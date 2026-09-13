@@ -4,7 +4,7 @@
 
 Un camp només es marca `HARDWARE_WRITE_VERIFIED` quan la integració local ha provat tota la ruta d'escriptura i lectura posterior contra un controlador físic. Un ACK o un còdec autocoherent no són suficients.
 
-La correcció de vacances de la 2.6.1 és un exemple deliberat d'aquesta regla: el camp 49 és codificable segons l'app antiga, però el G6 actual provat va donar ACK a l'escriptura local directa sense canviar l'estat en lectures fresques. Per això Home Assistant només exposa l'estat de vacances com a lectura.
+La correcció de vacances de la 2.6.1 continua sent un exemple deliberat d'aquesta regla: el camp 49 és codificable segons l'app antiga, però el G6 provat va donar ACK a l'escriptura local directa sense canviar l'estat en lectures fresques. Per això Home Assistant només exposa l'estat de vacances com a lectura.
 
 ## Seqüència requerida
 
@@ -17,15 +17,11 @@ Per a un camp de configuració reversible:
 5. **Restauració** — tornar a escriure el valor inicial.
 6. **GET de restauració** — verificar que l'estat original s'ha recuperat.
 
-No s'ha d'utilitzar estat cachejat del coordinator com a evidència.
-
-Per a una acció mecànica, també cal validar la fase/transició física esperada. Un bit coincident sense el moviment o estat esperat no és suficient.
+No s'ha d'utilitzar estat cachejat del coordinator com a evidència. Per a una acció mecànica també cal validar la fase/transició física esperada.
 
 ## Lliurament ambigu
 
 Si el SET ja s'ha enviat però es perd la resposta o hi ha timeout, **no es reenvia cegament**. El controlador podria haver-lo executat. Primer s'ha de fer un GET nou i reconciliar l'estat físic.
-
-Aquesta regla és especialment important per a regeneracions i transicions de vacances.
 
 ## Nivells d'evidència
 
@@ -34,67 +30,49 @@ Aquesta regla és especialment important per a regeneracions i transicions de va
 - canvi observat al cloud → `CLOUD_WRITE_OBSERVED`;
 - SET local + lectura física independent completa → `HARDWARE_WRITE_VERIFIED`.
 
-Conèixer el còdec i demostrar que el maquinari accepta l'acció són evidències independents. Un camp pot conservar un write codec a `runxin/fields.py` per interoperabilitat i, alhora, no formar part de la superfície d'escriptura de Home Assistant.
-
 ## Estat actual Ypsilon G6 / F79D
 
 Verificats localment de punta a punta:
 
 - camp 4 — rellotge / sincronització;
 - camp 6 — límit de consum continu;
+- **camp 7 — llindar de tancament per cabal, u16 big-endian**;
 - camp 10 — hora de regeneració;
-- camp 43 — valor de quantitat de sal afegida;
+- camp 43 — quantitat de sal afegida;
 - camp 47 — duresa de l'aigua d'entrada.
 
-Pendents o a revalidar:
+Pendents o deliberadament no verificats:
 
-- **camp 7 — llindar de tancament per cabal:** WaterDevice confirma que el còdec correcte és little-endian. Les versions anteriors a 2.6 utilitzaven BE tant en escriptura com en lectura i podien autoconfirmar l'error. Es retira l'antiga marca `HW` fins provar físicament el camí LE corregit;
-- **camp 34 — escriptures mecàniques/màquina d'estats:** només s'han d'exposar accions específicament observades i provades; el còdec per si sol no autoritza tots els valors;
-- **camp 49 — vacances:** el control local directe `1/0` està explícitament **no verificat** al G6 actual provat i no s'exposa a Home Assistant 2.6.1.
+- **camp 34** — escriptures mecàniques/màquina d'estats més enllà del comportament específic provat;
+- **camp 49** — el control local directe `1/0` de vacances està explícitament no verificat al G6 provat i no s'exposa com a control HA.
+
+## Evidència del camp 7
+
+El G6 físic resol l'ordre de bytes del camp 7 independentment de la interpretació de l'app antiga:
+
+```text
+bytes al fil: 03 E8
+big-endian:    0x03E8 = 1000 -> 10,00 m³/h
+little-endian: 0xE803 = 59395 -> 593,95 m³/h
+```
+
+L'app oficial mostrava 10,00 m³/h mentre Ypsilon 2.6.2, amb la regressió LE, mostrava 593,95 m³/h. La via d'escriptura aporta una segona prova: 2,00 m³/h són raw 200 (`0x00C8`) i s'han d'enviar com `00 C8`; la regressió LE enviava `C8 00`, rebia ACK però el read-back físic no canviava i el coordinator generava `Write ACKed but not confirmed`.
+
+Versions anteriors del projecte amb BE ja havien completat correctament el SET/read-back físic del camp 7. Sumant aquella verificació a l'evidència actual independent, el camp 7 torna a estar `HARDWARE_WRITE_VERIFIED`. La discrepància amb el còdec antic es conserva documentada, però per al G6 provat preval el controlador real.
 
 ## Evidència del falliment del camp 49
 
-La UI WaterDevice antiga indica aquesta semàntica:
+La UI antiga modela l'entrada de vacances des de station 0, la progressió `0 -> 3 -> 7 -> 2 -> 8` i l'estat estable com camp 49 cert + station 8. Al G6 provat, però, un SET local directe del camp 49 va rebre ACK i lectures locals independents repetides van continuar retornant `vacationPattern=false` fins al timeout. Per tant aquest mètode concret no funciona al maquinari provat i Ypsilon no inventa una seqüència mecànica alternativa.
 
-- entrada només des de station/system mode 0;
-- establir el flag de vacances;
-- progressió antiga de preparació `0 -> 3 -> 7 -> 2 -> 8`;
-- vacances estables = camp 49 cert + station 8;
-- la fase 2 de vacances utilitza el 25% del temps normal de rentat lent per al progrés de la UI;
-- sortida iniciada des de station 8.
+## Evidència d'aigua i sal
 
-Al G6 físic actual del projecte, la 2.6.0 va fer la comprovació crítica:
+L'històric real confirma que `dailyWaterConsumption` augmenta durant el dia i es reinicia al canvi de dia, cosa que dona suport a `TOTAL_INCREASING` per al camp 37. Les captures de l'app oficial mostren que el camp 39 no és el mateix que les barres de totals setmanals històrics, de manera que els camps 39 i 41 no tenen `state_class`.
 
-1. lectura inicial amb `vacationPattern=false` i vàlvula en servei;
-2. SET local directe del camp 49;
-3. ACK de transport/protocol;
-4. lectures locals independents repetides que continuaven retornant `vacationPattern=false`;
-5. timeout sense confirmació física.
+El camp 43 té SET/read-back local verificat i canvi observat per cloud. La seva semàntica és «sal afegida» en kg, no un sensor físic de nivell.
 
-Això descarta el mètode d'escriptura directa del camp 49 utilitzat a la 2.6.0 com a control d'usuari per a aquest firmware. La conclusió és més forta que «pendent»: **aquest mètode concret no funciona al maquinari provat**.
+## Camp 52
 
-L'app actual del fabricant també conté operacions dedicades d'entrada/sortida de vacances separades del control genèric. Per tant Ypsilon no ha d'inventar una seqüència multi-camp o mecànica alternativa.
-
-La 2.6.1 conserva:
-
-- lectura/descodificació del camp 49;
-- codificació legacy del camp 49 a la capa F79D reutilitzable per recerca/interoperabilitat;
-- sensor semàntic d'estat de vacances només de lectura;
-
-I elimina:
-
-- el switch de Mode vacances de Home Assistant;
-- qualsevol mètode del coordinator que escrigui directament el camp 49.
-
-## Evidència d'aigua i estadístiques
-
-Un export real d'històric del G6 confirma que `dailyWaterConsumption` augmenta durant el dia i es reinicia al canvi de dia. Això dona suport a `TOTAL_INCREASING` per al camp 37.
-
-Les mateixes dades, juntament amb captures de l'app oficial, mostren que el valor viu del camp 39 no és el mateix que les barres de totals setmanals històrics de l'app. Per això els camps 39 i 41 no tenen `state_class`.
-
-## Evidència de sal
-
-El camp 43 té SET/read-back local verificat i canvi observat també per la via cloud. La semàntica antiga és «sal afegida» en kg: valida un valor de configuració/registre, no un sensor físic de nivell. La integració no ha d'inferir ni decrementar «sal restant» a partir d'aquest camp.
+El camp 52 queda intencionadament fora del bloc normal 1..51. La capa Ypsilon el consulta i cacheja per separat perquè és un interval de servei que canvia lentament.
 
 ## Regla de generalització
 

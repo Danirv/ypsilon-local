@@ -30,16 +30,27 @@ Field data is transported in three-byte groups:
 
 Those two bytes do **not** have one global endianness. The field catalogue is authoritative for each field.
 
-## Field codecs
+## Field codecs and field 7 evidence
 
 Known codecs include `u8`, `u16_le`, `u16_be`, `time_hm`, `duration_min_sec`, `bool`, `volume_pair` and `reminder_flags`.
 
-The recovered WaterDevice codec establishes an important asymmetry:
+On the tested physical Ypsilon G6:
 
-- field 7 (`flowRateOff`) is `u16_le`;
-- field 11 (`flowRate`) is `u16_be` because WaterDevice explicitly reverses that field before its generic integer decoder.
+- field 7 (`flowRateOff`) is `u16_be` for reads and writes;
+- field 11 (`flowRate`) is `u16_be`;
+- fields such as 12, 25, 47 and 52 remain `u16_le`;
+- volume-pair fields are unit dependent.
 
-Volume-pair fields are unit dependent. See [`f79d.md`](f79d.md); a single universal formula is incorrect.
+Field 7 intentionally records a discrepancy between recovered application behavior and the tested controller. The recovered WaterDevice path appeared to use a generic LE helper, but physical wire bytes are decisive:
+
+```text
+03 E8 -> BE 1000 -> 10.00 m³/h
+03 E8 -> LE 59395 -> 593.95 m³/h
+```
+
+The vendor app displayed 10.00 m³/h while the LE regression in Ypsilon 2.6.2 displayed 593.95 m³/h. A requested write of 2.00 m³/h is raw 200 and must be encoded as `00 C8`; the LE regression sent `C8 00`, received a transport ACK, but failed strict fresh read-back. Earlier BE builds had already passed physical SET/read-back verification. Field 7 is therefore `HARDWARE_WRITE_VERIFIED` as BE on the tested G6.
+
+See [`f79d.md`](f79d.md) for the full field catalogue and volume-pair rules.
 
 ## Evidence model
 
@@ -51,11 +62,9 @@ Volume-pair fields are unit dependent. See [`f79d.md`](f79d.md); a single univer
 - `cloud_write_observed` — a change observed through the vendor/cloud path;
 - `inferred` — interpretation not directly confirmed.
 
-A protocol ACK alone is never hardware-write evidence. Codec support and current-firmware physical acceptance are separate facts.
+A protocol ACK alone is never hardware-write evidence. Codec support and current-firmware physical acceptance are separate facts. When an application-codec interpretation conflicts with independent controller bytes/read-back, the physical controller evidence is authoritative for the tested hardware and the discrepancy is documented.
 
-The field-7 correction deliberately removed its old `hardware_write_verified` label: the prior implementation encoded and decoded the same wrong byte order and could therefore self-confirm. It can regain `HW` only after the corrected LE path is physically revalidated.
-
-Field 49 is the complementary example introduced by 2.6.1: the legacy codec can encode the vacation flag, but the tested G6 ACKed a direct local write while repeated fresh reads remained unchanged. That specific write method is therefore **not** a verified Home Assistant control.
+Field 49 remains the complementary negative example: the legacy codec can encode the vacation flag, but the tested G6 ACKed a direct local write while repeated fresh reads remained unchanged. That specific write method is therefore **not** a verified Home Assistant control.
 
 ## Read and write delivery semantics
 
@@ -71,6 +80,8 @@ Writes are treated differently:
 
 Mechanical operations additionally require the expected physical/state-machine transition, not merely a matching bit.
 
+The field-7 LE regression demonstrated this architecture working correctly: the protocol ACKed the write, but the physical state did not match, so Home Assistant surfaced a write-confirmation error instead of reporting false success.
+
 ## Home Assistant policy versus codec capability
 
 A syntactically writable field is not automatically a safe Home Assistant control. The generic administrator `write_fields` service is limited to reversible configuration fields and applies range/unit checks.
@@ -80,7 +91,7 @@ Mechanical/state-machine fields are excluded from that generic service:
 - field 34 — regeneration/system mode;
 - field 49 — vacation state.
 
-Field 34 is handled only by specific operations whose behavior is understood. **Field 49 has no writer in Home Assistant 2.6.1**: its state remains readable, but the failed direct-write method from 2.6.0 was withdrawn rather than replaced with a guessed sequence.
+Field 34 is handled only by specific operations whose behavior is understood. Field 49 has no writer in Home Assistant: its state remains readable, but the failed direct-write method was withdrawn rather than replaced with a guessed sequence.
 
 ## Vacation semantics
 
@@ -92,15 +103,19 @@ Ypsilon still derives a read-only semantic state while retaining raw `station`:
 - `preparing`: flag true, station not 8;
 - `active`: flag true, station 8.
 
-On the tested current G6, however, direct local `field49=1` was ACKed without changing read-back. The newer vendor application also contains dedicated vacation-enter/exit operations. Consequently no local vacation action is exposed until a correct sequence is physically verified.
+On the tested current G6, direct local `field49=1` was ACKed without changing read-back. The newer vendor application also contains dedicated vacation-enter/exit operations. Consequently no local vacation action is exposed until a correct sequence is physically verified.
 
-## Water/statistics semantics
+## Water/statistics and salt semantics
 
 Real controller history confirms field 37 is a within-day cumulative counter that resets at the day boundary, supporting Home Assistant `TOTAL_INCREASING` semantics.
 
 Field 39 is a controller weekly average and is not the same quantity as the vendor application's week-by-week historical total bars. Field 41 is treatment/cycle capacity, not a cumulative meter. Neither declares a Home Assistant `state_class`.
 
 Field 43 is an amount of salt added/bookkept by the controller, not a measured salt level.
+
+## Field 52 polling
+
+The normal state block remains fields 1..51. Field 52 is queried and cached separately by the Ypsilon composition layer because it is a slow-changing service interval. That polling policy is separate from the generic F79D codec capability.
 
 ## BL3372 envelope
 

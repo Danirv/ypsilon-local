@@ -34,8 +34,8 @@ Other currently exposed write limits remain:
 - field 43 `saltAddition`: 0–100 kg;
 - field 47 `rawWaterHardness`: 50–1500 mg/L.
 
-These UI ranges are separate from write-evidence policy. Field 7 remains without `HARDWARE_WRITE_VERIFIED` evidence after the endian correction until it is physically revalidated on current hardware.
+These UI ranges are separate from write-evidence policy. On the tested Ypsilon G6, field 7 is `HARDWARE_WRITE_VERIFIED` using a 16-bit **big-endian** wire value. The decisive read-back is `03 E8` for raw 1000 / 10.00 m³/h; earlier project builds using BE also completed successful local write/read-back verification. The 2.6.x LE regression produced `593.95 m³/h` from the same bytes and failed strict write confirmation.
 
 ## Evidence source
 
-The mappings and ranges above come from the recovered legacy WaterDevice JavaScript configuration and enum modules. They are regression-tested in `tests/test_recovered_settings_semantics.py` so an enum cannot silently regress back to a raw integer sensor, and translation state sets must remain complete in English, Spanish and Catalan.
+The enum mappings and UI ranges above come from the recovered legacy WaterDevice JavaScript configuration and enum modules. Field-7 byte order is intentionally taken from physical G6 evidence where the recovered application interpretation conflicts with the controller. These semantics are regression-tested in `tests/test_recovered_settings_semantics.py`, `tests/test_f79d.py` and `scripts/audit.py`; translations remain complete in English, Spanish and Catalan.
