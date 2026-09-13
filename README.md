@@ -108,14 +108,18 @@ This distinction is intentional: a configured bookkeeping value must not be pres
 
 ## Water units and F79D codec notes
 
-Ypsilon mirrors the recovered WaterDevice codec:
+Ypsilon combines recovered application knowledge with physical-controller evidence. For the tested Ypsilon G6:
 
-- field 7 (`flowRateOff`) is **little-endian**;
-- field 11 (`flowRate`) is **big-endian** because the legacy application explicitly reverses it;
+- field 7 (`flowRateOff`) is **16-bit big-endian** in both read and write paths and is `HARDWARE_WRITE_VERIFIED`;
+- field 11 (`flowRate`) is also **big-endian** on the wire;
 - volume pairs 35/37/39/41 are decoded according to field 8 (`waterVolumeUnit`), rather than through one universal formula;
 - legacy flow labels are `gpm`, `L/min`, and `m³/h` for unit codes 0, 1 and 2 respectively.
 
-Only unit code 2 has been calibrated end-to-end against the project's physical Ypsilon G6. Field 7 remains exposed only in that unit family. Its corrected LE write encoding is sourced from the legacy codec; hardware-write evidence remains intentionally pending until the corrected implementation is physically revalidated.
+The decisive field-7 hardware vector is `03 E8`: big-endian gives raw 1000 / 10.00 m³/h, matching the vendor app; the regressed little-endian interpretation gives raw 59395 / 593.95 m³/h. A 2.00 m³/h write is raw 200 and must be sent as `00 C8`. The 2.6.x LE regression sent `C8 00`; the controller ACKed transport but fresh read-back did not adopt the requested value, and Ypsilon correctly rejected the write.
+
+Only unit code 2 has been calibrated end-to-end against the project's physical Ypsilon G6. Field 7 remains exposed only in that unit family and is constrained to **0.00–10.00 m³/h** (raw 0–1000).
+
+The recovered legacy WaterDevice path appeared to use little-endian for field 7. That discrepancy is retained in the research documentation, but observed controller bytes and independent physical read-back take precedence for the tested hardware.
 
 ## Water dashboard
 
@@ -130,7 +134,7 @@ The design deliberately separates:
 3. fresh physical state returned by the controller;
 4. Home Assistant entity state.
 
-Writes are sent once and reconciled through a strict fresh read. Ambiguous delivery is never resolved by blindly sending the same mechanical command again.
+Writes are sent once and reconciled through a strict fresh read. Ambiguous delivery is never resolved by blindly sending the same mechanical command again. The field-7 LE regression is a concrete example of this mechanism working correctly: the controller ACKed the request, but the unmatched fresh read-back prevented Home Assistant from reporting a false successful write.
 
 This software can change water-softener settings and start mechanical operations. It is not a certified safety controller and should not be the sole flood/leak protection mechanism.
 
@@ -181,13 +185,13 @@ GitHub CI includes HACS validation, hassfest, the offline audit and release-tag/
 
 ## Branding
 
-Home Assistant can load local brand assets shipped by custom integrations. Ypsilon 2.6.1 provides separate assets for their actual roles rather than reusing one square PNG for everything:
+Home Assistant can load local brand assets shipped by custom integrations. Ypsilon provides separate assets for their actual roles rather than reusing one square PNG for everything:
 
 - `icon.png` / `icon@2x.png`: square artwork with safe padding for circular/square crops;
 - `logo.png` / `logo@2x.png`: landscape Ypsilon Local wordmark;
 - matching dark variants on transparent backgrounds.
 
-HACS presentation depends on the HACS/Home Assistant frontend version and caching; the repository itself now provides correctly proportioned local assets instead of a square image masquerading as a landscape logo.
+HACS presentation depends on the HACS/Home Assistant frontend version and caching; the repository itself provides correctly proportioned local assets instead of a square image masquerading as a landscape logo.
 
 ## Interoperability and legal notice
 
