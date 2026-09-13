@@ -34,8 +34,8 @@ Els altres límits d'escriptura exposats es mantenen:
 - camp 43 `saltAddition`: 0–100 kg;
 - camp 47 `rawWaterHardness`: 50–1500 mg/L.
 
-Aquests rangs de la UI són independents de la política d'evidència d'escriptura. El camp 7 continua sense evidència `HARDWARE_WRITE_VERIFIED` després de corregir l'endianness fins que es torni a validar físicament al maquinari actual.
+Aquests rangs de la UI són independents de la política d'evidència d'escriptura. Al Ypsilon G6 provat, el camp 7 està `HARDWARE_WRITE_VERIFIED` amb un valor de 16 bits **big-endian**. La lectura decisiva és `03 E8`, que correspon a raw 1000 / 10,00 m³/h; versions anteriors del projecte amb BE ja havien completat correctament l'escriptura i el read-back locals. La regressió LE de la 2.6.x produïa `593,95 m³/h` amb aquests mateixos bytes i fallava la confirmació estricta d'escriptura.
 
 ## Font de l'evidència
 
-Els mapatges i rangs anteriors provenen de la configuració i dels mòduls d'enums recuperats del JavaScript de l'antiga WaterDevice. `tests/test_recovered_settings_semantics.py` els protegeix contra regressions: un enum no pot tornar silenciosament a ser un sensor enter cru i els estats traduïts han de ser complets en anglès, castellà i català.
+Els mapatges d'enums i rangs de UI provenen de la configuració i dels mòduls recuperats del JavaScript de l'antiga WaterDevice. Per a l'ordre de bytes del camp 7 preval l'evidència física del G6 quan entra en conflicte amb la interpretació del còdec antic. `tests/test_recovered_settings_semantics.py`, `tests/test_f79d.py` i `scripts/audit.py` ho protegeixen contra regressions; les traduccions continuen completes en anglès, castellà i català.
