@@ -16,6 +16,8 @@ from enum import Enum
 
 
 class FieldCodec(str, Enum):
+    """Wire-level encoding used to read or write one F79D field."""
+
     U8 = "u8"
     U16_LE = "u16_le"
     U16_BE = "u16_be"
@@ -28,6 +30,8 @@ class FieldCodec(str, Enum):
 
 
 class Evidence(str, Enum):
+    """Origin and confidence category for a recovered field definition."""
+
     LEGACY_APP_CODEC = "legacy_app_codec"
     DEVICE_STATE_OBSERVED = "device_state_observed"
     HARDWARE_WRITE_VERIFIED = "hardware_write_verified"
@@ -37,6 +41,8 @@ class Evidence(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class FieldSpec:
+    """Describe one F79D field, its codecs, evidence, unit and research notes."""
+
     id: int
     name: str
     read_codec: FieldCodec = FieldCodec.U8
@@ -48,6 +54,7 @@ class FieldSpec:
 
 APP = (Evidence.LEGACY_APP_CODEC,)
 OBSERVED = (Evidence.LEGACY_APP_CODEC, Evidence.DEVICE_STATE_OBSERVED)
+DEVICE_ONLY = (Evidence.DEVICE_STATE_OBSERVED,)
 HW_WRITE = (
     Evidence.LEGACY_APP_CODEC,
     Evidence.DEVICE_STATE_OBSERVED,
@@ -71,12 +78,14 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(5, "washInitiationTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM),
     FieldSpec(6, "continuousWaterTime", write_codec=FieldCodec.U8, evidence=HW_WRITE, unit_hint="min",
               notes="WaterDevice settings range 0..120 min."),
-    # Legacy WaterDevice serialises field 7 little-endian. The previous project
-    # implementation used BE in both directions and therefore could self-confirm
-    # the wrong byte order. Keep hardware-write evidence withdrawn until LE is
-    # exercised again end-to-end on the physical controller.
-    FieldSpec(7, "flowRateOff", FieldCodec.U16_LE, FieldCodec.U16_LE, evidence=OBSERVED,
-              notes="Hundredths of selected flow unit; legacy codec is LE. In unit code 2 WaterDevice caps display at 10.00 m³/h (raw 1000)."),
+    # Physical G6 evidence overrides the legacy-app interpretation for field 7.
+    # The controller returns 03 E8 while WaterDevice displays 10.00 m³/h: the
+    # wire value is therefore BE 0x03E8 == 1000 hundredths. A prior LE write was
+    # transport-ACKed but rejected by fresh read-back, exactly as expected when
+    # the controller interprets the two bytes as BE. Keep write verification
+    # conservative until a corrected BE write is confirmed end-to-end.
+    FieldSpec(7, "flowRateOff", FieldCodec.U16_BE, FieldCodec.U16_BE, evidence=DEVICE_ONLY,
+              notes="Hundredths of selected flow unit. Tested G6 wire bytes 03 E8 decode as BE raw 1000 = 10.00 m³/h. WaterDevice caps unit-code-2 display at 10.00 m³/h."),
     FieldSpec(8, "waterVolumeUnit", evidence=OBSERVED),
     FieldSpec(9, "workPattern", write_codec=FieldCodec.U8, evidence=OBSERVED,
               notes="Legacy WaterDevice enum codes 0..9; exposed read-only by HA."),
