@@ -10,15 +10,22 @@ Integració local per a descalcificadors compatibles amb **Runxin F79D + BroadLi
 - Diagnòstics per fases de rentat, dissolució de sal, pausa 1, errors, comunicació i manteniment.
 - Traduccions CA/ES/EN i branding local amb icona quadrada i logo horitzontal independents.
 
+## Canvi principal de la 2.6.3
+
+El camp 7 (`flowRateOff`, llindar de tancament per cabal) torna a utilitzar **u16 big-endian** en lectura i escriptura i recupera `HARDWARE_WRITE_VERIFIED`.
+
+La prova física és directa: el controlador retorna `03 E8` mentre l'app oficial mostra 10,00 m³/h. En BE és raw 1000; en LE es converteix erròniament en 59395 i Home Assistant mostrava 593,95 m³/h. Per escriure 2,00 m³/h, raw 200 s'ha d'enviar com `00 C8`. La regressió LE enviava `C8 00`, rebia ACK però el read-back físic no confirmava el canvi, i la verificació estricta de Ypsilon el rebutjava correctament.
+
+Versions anteriors del projecte amb BE ja havien verificat físicament SET/read-back per aquest camp. La superfície HA es manté limitada a 0–10,00 m³/h en la família d'unitat 2 validada.
+
 ## Canvis principals de la 2.6.1
 
 - Vacances: el camp 49 es continua llegint i el sensor `desactivat / preparant / actiu` es manté, però no s'exposa cap escriptura fins conèixer i verificar físicament l'acció local del firmware actual.
 - Consum diari: es manté com a comptador `TOTAL_INCREASING` que creix durant el dia i es reinicia al canvi de dia.
-- Camp 39: passa a dir-se **Consum setmanal mitjà del controlador**. No és el total setmanal de les barres històriques de l'app oficial.
+- Camp 39: **Consum setmanal mitjà del controlador**. No és el total setmanal de les barres històriques de l'app oficial.
 - Camp 41: **Capacitat de tractament per cicle**, no un comptador de consum.
-- Camp 43: **Quantitat de sal afegida**, un valor de registre/configuració en kg; no és nivell de sal restant i no es decrementa automàticament després d'una regeneració.
-- Branding regenerat: `icon` 256×256 amb marges segurs, `icon@2x`, logo horitzontal i variants 2x/dark.
-- Tests i `scripts/audit.py` amplien les regressions de vacances, estadístiques d'aigua, sal i geometria del branding.
+- Camp 43: **Quantitat de sal afegida**, un valor de registre/configuració en kg; no és nivell de sal restant.
+- Branding amb icona quadrada, logo horitzontal i variants 2x/dark.
 
 ## Estadístiques antigues de Home Assistant
 
